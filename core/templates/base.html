@@ -164,7 +164,7 @@
                         <i data-lucide="zap" class="w-4 h-4 text-slate-500"></i> Captação Rápida
                     </button>
                     <div class="border-t border-slate-100 my-1"></div>
-                    <a href="/admin/core/person/add/" @click="closeMobile()" class="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50">
+                    <a href="{% url 'contact_create' %}" @click="closeMobile()" class="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50">
                         <i data-lucide="user-plus" class="w-4 h-4 text-slate-500"></i> Novo Cliente
                     </a>
                 </div>
@@ -194,10 +194,11 @@
                 <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Imóveis</span>
             </a>
 
-            <a href="/admin/core/person/" @click="closeMobile()"
-               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent">
-                <i data-lucide="users" class="w-[18px] h-[18px] flex-shrink-0 text-slate-400"></i>
-                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Clientes</span>
+            <a href="{% url 'contact_list' %}" @click="closeMobile()"
+               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition
+                      {% if 'contatos' in request.path %}bg-primary-50 text-primary-800 border-l-2 border-primary-700{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent{% endif %}">
+                <i data-lucide="users" class="w-[18px] h-[18px] flex-shrink-0 {% if 'contatos' in request.path %}text-primary-700{% else %}text-slate-400{% endif %}"></i>
+                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Contatos</span>
             </a>
 
             <a href="{% url 'visit_schedule' %}" @click="closeMobile()"

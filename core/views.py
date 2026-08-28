@@ -1483,3 +1483,128 @@ def lead_template_message_view(request, lead_id, template_id):
 
     messages.error(request, 'Telefone do cliente inválido para WhatsApp.')
     return redirect('kanban')
+
+
+# ==========================================
+# MÓDULO DE CONTATOS (Frontend)
+# ==========================================
+
+def contact_list_view(request):
+    """Listagem de contatos / clientes com busca e filtros"""
+    qs = Person.objects.select_related('assigned_agent').all()
+
+    q = request.GET.get('q', '').strip()
+    if q:
+        qs = qs.filter(
+            Q(name__icontains=q) |
+            Q(email__icontains=q) |
+            Q(phone__icontains=q) |
+            Q(document__icontains=q)
+        )
+
+    client_type = request.GET.get('type', '')
+    if client_type:
+        qs = qs.filter(client_type=client_type)
+
+    agent_id = request.GET.get('agent', '')
+    if agent_id:
+        qs = qs.filter(assigned_agent_id=agent_id)
+
+    context = {
+        'contacts': qs.order_by('-created_at'),
+        'q': q,
+        'current_type': client_type,
+        'current_agent': agent_id,
+        'client_types': Person.CLIENT_TYPES,
+        'agents': User.objects.filter(is_active=True).order_by('first_name', 'username'),
+        'total': qs.count(),
+    }
+    if request.headers.get('HX-Request'):
+        return render(request, 'contacts/partials/contact_rows.html', context)
+    return render(request, 'contacts/list.html', context)
+
+
+def contact_create_view(request):
+    """Cadastro de novo contato no frontend"""
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        phone = request.POST.get('phone', '').strip()
+        email = request.POST.get('email', '').strip() or None
+        secondary_phone = request.POST.get('secondary_phone', '').strip() or None
+        document = request.POST.get('document', '').strip() or None
+        client_type = request.POST.get('client_type', 'buyer')
+        notes = request.POST.get('notes', '').strip() or None
+        agent_id = request.POST.get('assigned_agent') or None
+
+        if not name or not phone:
+            messages.error(request, 'Nome e telefone são obrigatórios.')
+            return redirect('contact_create')
+
+        agent = None
+        if agent_id:
+            agent = User.objects.filter(pk=agent_id).first()
+        elif request.user.is_authenticated:
+            agent = request.user
+
+        person = Person.objects.create(
+            name=name,
+            phone=phone,
+            email=email,
+            secondary_phone=secondary_phone,
+            document=document,
+            client_type=client_type,
+            notes=notes,
+            assigned_agent=agent,
+        )
+        messages.success(request, f'Contato "{person.name}" cadastrado com sucesso.')
+        return redirect('contact_list')
+
+    return render(request, 'contacts/form.html', {
+        'contact': None,
+        'client_types': Person.CLIENT_TYPES,
+        'agents': User.objects.filter(is_active=True).order_by('first_name', 'username'),
+        'form_title': 'Novo Contato',
+        'form_action': 'contact_create',
+    })
+
+
+def contact_edit_view(request, pk):
+    """Edição de contato no frontend"""
+    person = get_object_or_404(Person, pk=pk)
+
+    if request.method == 'POST':
+        person.name = request.POST.get('name', '').strip()
+        person.phone = request.POST.get('phone', '').strip()
+        person.email = request.POST.get('email', '').strip() or None
+        person.secondary_phone = request.POST.get('secondary_phone', '').strip() or None
+        person.document = request.POST.get('document', '').strip() or None
+        person.client_type = request.POST.get('client_type', person.client_type)
+        person.notes = request.POST.get('notes', '').strip() or None
+        agent_id = request.POST.get('assigned_agent') or None
+        person.assigned_agent = User.objects.filter(pk=agent_id).first() if agent_id else None
+        person.save()
+        messages.success(request, f'Contato "{person.name}" atualizado.')
+        return redirect('contact_list')
+
+    return render(request, 'contacts/form.html', {
+        'contact': person,
+        'client_types': Person.CLIENT_TYPES,
+        'agents': User.objects.filter(is_active=True).order_by('first_name', 'username'),
+        'form_title': f'Editar — {person.name}',
+        'form_action': 'contact_edit',
+    })
+
+
+def contact_detail_view(request, pk):
+    """Ficha do contato"""
+    person = get_object_or_404(
+        Person.objects.select_related('assigned_agent').prefetch_related('leads', 'owned_properties'),
+        pk=pk
+    )
+    prefs = getattr(person, 'preferences', None)
+    return render(request, 'contacts/detail.html', {
+        'contact': person,
+        'prefs': prefs,
+        'leads': person.leads.select_related('stage', 'pipeline').all()[:20],
+        'owned': person.owned_properties.all()[:20],
+    })

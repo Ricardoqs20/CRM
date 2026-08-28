@@ -105,9 +105,13 @@ WEBHOOK_API_KEY = 'imobicrm_secret_key_2026'
 
 ALLOWED_HOSTS = ['*']
 
-# Permite requisições vindas do celular via Wi-Fi sem bloquear a sessão
 CSRF_TRUSTED_ORIGINS = [
     'http://192.168.0.10:8000',
+    'http://192.168.0.*:8000',
     'http://localhost:8000',
     'http://127.0.0.1:8000',
 ]
+
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Lax'

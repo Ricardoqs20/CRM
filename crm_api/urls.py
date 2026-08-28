@@ -16,7 +16,8 @@ from core.views import (
     dashboard_view,
     lead_webhook_ingest_view, portal_xml_feed_view,
     whatsapp_template_list_view, whatsapp_template_save_view,
-    whatsapp_template_delete_view, lead_template_message_view
+    whatsapp_template_delete_view, lead_template_message_view,
+    contact_list_view, contact_create_view, contact_edit_view, contact_detail_view
 )
 
 router = DefaultRouter()
@@ -58,6 +59,13 @@ urlpatterns = [
     path('tasks/', task_list_view, name='task_list'),
     path('tasks/create/', task_create_view, name='task_create'),
     path('tasks/<int:task_id>/toggle/', task_toggle_complete_view, name='task_toggle_complete'),
+
+
+    # Módulo de Contatos (Frontend)
+    path('contatos/', contact_list_view, name='contact_list'),
+    path('contatos/novo/', contact_create_view, name='contact_create'),
+    path('contatos/<int:pk>/', contact_detail_view, name='contact_detail'),
+    path('contatos/<int:pk>/editar/', contact_edit_view, name='contact_edit'),
 
     # Módulo de Templates de WhatsApp
     path('templates/', whatsapp_template_list_view, name='whatsapp_template_list'),

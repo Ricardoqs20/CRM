@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ form_title }} - ImobiCRM{% endblock %}
+{% block header_title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-semibold text-slate-800">{{ form_title }}</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Dados do cliente / proprietário / contato</p>
+      </div>
+      <a href="{% url 'contact_list' %}" class="text-xs text-slate-500 hover:text-slate-800">← Voltar</a>
+    </div>
+
+    <form method="post" class="p-5 space-y-4">
+      {% csrf_token %}
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-medium text-slate-600 mb-1">Nome completo *</label>
+          <input type="text" name="name" required value="{{ contact.name|default:'' }}"
+                 class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
+                 placeholder="Ex: Ana Paula Souza">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Telefone / WhatsApp *</label>
+          <input type="text" name="phone" required value="{{ contact.phone|default:'' }}"
+                 class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-1 focus:ring-primary-500 outline-none"
+                 placeholder="98999990000">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Telefone secundário</label>
+          <input type="text" name="secondary_phone" value="{{ contact.secondary_phone|default:'' }}"
+                 class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none"
+                 placeholder="Opcional">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">E-mail</label>
+          <input type="email" name="email" value="{{ contact.email|default:'' }}"
+                 class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none"
+                 placeholder="email@exemplo.com">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">CPF / CNPJ</label>
+          <input type="text" name="document" value="{{ contact.document|default:'' }}"
+                 class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none"
+                 placeholder="000.000.000-00">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Tipo de contato</label>
+          <select name="client_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none">
+            {% for val, label in client_types %}
+            <option value="{{ val }}" {% if contact and contact.client_type == val %}selected{% elif not contact and val == 'buyer' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-600 mb-1">Corretor responsável</label>
+          <select name="assigned_agent" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none">
+            <option value="">— Sem corretor —</option>
+            {% for a in agents %}
+            <option value="{{ a.id }}" {% if contact and contact.assigned_agent_id == a.id %}selected{% elif not contact and request.user.id == a.id %}selected{% endif %}>
+              {{ a.get_full_name|default:a.username }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-medium text-slate-600 mb-1">Observações</label>
+          <textarea name="notes" rows="3"
+                    class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none resize-y"
+                    placeholder="Preferências, histórico, detalhes...">{{ contact.notes|default:'' }}</textarea>
+        </div>
+      </div>
+
+      <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t border-slate-100">
+        <a href="{% url 'contact_list' %}" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-md text-center">Cancelar</a>
+        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-primary-900 hover:bg-primary-800 rounded-md">
+          {% if contact %}Salvar alterações{% else %}Cadastrar contato{% endif %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

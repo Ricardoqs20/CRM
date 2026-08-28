@@ -38,20 +38,20 @@ def main():
         UserProfile.objects.get_or_create(user=u, defaults={'role': 'manager'})
         print('Admin: Ricardo / admin123')
 
-    # Usuário corretor (NÃO admin)
+    # Usuário corretor (staff para /admin, SEM superuser)
+    from django.contrib.auth.models import Group, Permission
     user, created = User.objects.get_or_create(
         username='corretor',
         defaults={
             'first_name': 'Ricardo',
             'last_name': 'Corretor',
             'email': 'corretor@imobicrm.local',
-            'is_staff': False,
-            'is_superuser': False,
         },
     )
     user.set_password('corretor123')
-    user.is_staff = False
+    user.is_staff = True
     user.is_superuser = False
+    user.is_active = True
     user.save()
     UserProfile.objects.update_or_create(
         user=user,
@@ -63,7 +63,22 @@ def main():
             'bio': 'Corretor de teste',
         },
     )
-    print('Corretor: corretor / corretor123  (role=agent)')
+    group, _ = Group.objects.get_or_create(name='Corretores')
+    model_names = [
+        'person', 'company', 'clientpreference', 'property', 'propertyimage',
+        'propertylead', 'pipeline', 'stage', 'activity', 'interactionlog',
+        'propertyvisit', 'whatsapptemplate',
+    ]
+    perms = []
+    for name in model_names:
+        for action in ('add', 'change', 'view', 'delete'):
+            try:
+                perms.append(Permission.objects.get(codename=f'{action}_{name}'))
+            except Permission.DoesNotExist:
+                pass
+    group.permissions.set(perms)
+    user.groups.add(group)
+    print('Corretor: corretor / corretor123  (staff, role=agent, grupo Corretores)')
 
     contacts = [
         ('Ana Paula Souza', 'ana.souza@email.com', '98991112233', 'buyer'),

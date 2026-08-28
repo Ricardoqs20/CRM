@@ -1,0 +1,66 @@
+{% if contacts %}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="bg-slate-50 border-b border-slate-200 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">
+        <th class="px-4 py-3">Nome</th>
+        <th class="px-4 py-3 hidden sm:table-cell">Telefone</th>
+        <th class="px-4 py-3 hidden md:table-cell">E-mail</th>
+        <th class="px-4 py-3">Tipo</th>
+        <th class="px-4 py-3 hidden lg:table-cell">Corretor</th>
+        <th class="px-4 py-3 text-right">Ações</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for c in contacts %}
+      <tr class="hover:bg-slate-50/80 transition">
+        <td class="px-4 py-3">
+          <a href="{% url 'contact_detail' c.pk %}" class="font-medium text-slate-800 hover:text-primary-800">
+            {{ c.name }}
+          </a>
+          <p class="text-xs text-slate-400 sm:hidden mt-0.5">{{ c.phone }}</p>
+        </td>
+        <td class="px-4 py-3 text-slate-600 hidden sm:table-cell">
+          <a href="https://wa.me/55{{ c.phone|cut:' '|cut:'-'|cut:'('|cut:')' }}" target="_blank"
+             class="inline-flex items-center gap-1 hover:text-green-700">
+            <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+            {{ c.phone }}
+          </a>
+        </td>
+        <td class="px-4 py-3 text-slate-500 hidden md:table-cell truncate max-w-[180px]">
+          {{ c.email|default:"—" }}
+        </td>
+        <td class="px-4 py-3">
+          <span class="inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full
+            {% if c.client_type == 'buyer' %}bg-blue-50 text-blue-700
+            {% elif c.client_type == 'owner' %}bg-amber-50 text-amber-700
+            {% elif c.client_type == 'renter' %}bg-violet-50 text-violet-700
+            {% elif c.client_type == 'investor' %}bg-emerald-50 text-emerald-700
+            {% else %}bg-slate-100 text-slate-600{% endif %}">
+            {{ c.get_client_type_display }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-slate-500 hidden lg:table-cell">
+          {% if c.assigned_agent %}{{ c.assigned_agent.get_full_name|default:c.assigned_agent.username }}{% else %}—{% endif %}
+        </td>
+        <td class="px-4 py-3 text-right whitespace-nowrap">
+          <a href="{% url 'contact_detail' c.pk %}" class="text-slate-500 hover:text-primary-800 text-xs font-medium mr-2">Ver</a>
+          <a href="{% url 'contact_edit' c.pk %}" class="text-slate-500 hover:text-primary-800 text-xs font-medium">Editar</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="px-6 py-16 text-center">
+  <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+    <i data-lucide="users" class="w-6 h-6 text-slate-400"></i>
+  </div>
+  <p class="text-sm font-medium text-slate-700">Nenhum contato encontrado</p>
+  <p class="text-xs text-slate-500 mt-1">Cadastre o primeiro contato ou ajuste os filtros.</p>
+  <a href="{% url 'contact_create' %}" class="inline-flex items-center gap-1.5 mt-4 text-sm text-primary-800 font-medium hover:underline">
+    <i data-lucide="plus" class="w-4 h-4"></i> Novo Contato
+  </a>
+</div>
+{% endif %}
