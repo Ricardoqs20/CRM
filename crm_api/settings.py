@@ -105,14 +105,13 @@ WEBHOOK_API_KEY = 'imobicrm_secret_key_2026'
 
 ALLOWED_HOSTS = ['*']
 
-
-# CSRF / Cookies — desenvolvimento local
 CSRF_TRUSTED_ORIGINS = [
-    'http://127.0.0.1:8000',
+    'http://192.168.0.10:8000',
+    'http://192.168.0.*:8000',
     'http://localhost:8000',
-    'http://127.0.0.1:8001',
-    'http://localhost:8001',
+    'http://127.0.0.1:8000',
 ]
+
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_SAMESITE = 'Lax'
