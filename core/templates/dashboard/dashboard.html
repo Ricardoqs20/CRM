@@ -9,7 +9,7 @@
 
 {% block header_title %}
 <span class="flex items-center gap-2">
-    <span class="p-2 rounded-xl bg-indigo-100 text-indigo-700 text-lg">📊</span>
+    <span class="p-2 rounded-xl bg-blue-50 text-blue-800 text-lg">📊</span>
     <span>Painel de Indicadores & BI Imobiliário</span>
 </span>
 {% endblock %}
@@ -18,18 +18,18 @@
 <div class="space-y-6 max-w-7xl mx-auto">
 
     <!-- Topo: Filtros & Controle de Período -->
-    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="bg-white rounded-lg p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
         
         <!-- Toggle Finalidade: Todos / Vendas / Locação -->
         <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-full md:w-auto">
             <a href="?trans_type=all{% if selected_agent_id %}&agent={{ selected_agent_id }}{% endif %}" 
                class="flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition text-center
-                      {% if trans_type_filter == 'all' %}bg-white text-indigo-700 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                      {% if trans_type_filter == 'all' %}bg-white text-blue-800 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
                 🌐 Todos os Negócios
             </a>
             <a href="?trans_type=buy{% if selected_agent_id %}&agent={{ selected_agent_id }}{% endif %}" 
                class="flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition text-center
-                      {% if trans_type_filter == 'buy' %}bg-white text-emerald-700 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                      {% if trans_type_filter == 'buy' %}bg-white text-slate-800 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
                 🏷️ Apenas Vendas
             </a>
             <a href="?trans_type=rent{% if selected_agent_id %}&agent={{ selected_agent_id }}{% endif %}" 
@@ -57,7 +57,7 @@
             </form>
             {% else %}
             <div class="bg-indigo-50 text-indigo-800 px-3 py-1.5 rounded-xl border border-indigo-200 text-xs font-bold flex items-center gap-1.5">
-                <i data-lucide="user-check" class="w-4 h-4 text-indigo-600"></i>
+                <i data-lucide="user-check" class="w-4 h-4 text-blue-700"></i>
                 <span>Visão Individual do Corretor</span>
             </div>
             {% endif %}
@@ -68,36 +68,36 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <!-- KPI 1: VGV Fechado no Mês + Barra de Progresso da Meta -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">VGV Fechado (Mês)</p>
-                    <span class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm">📈</span>
+                    <span class="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm">📈</span>
                 </div>
-                <h3 class="text-2xl font-black text-slate-900 mt-1">R$ {{ vgv_fechado_mes|floatformat:2 }}</h3>
+                <h3 class="text-2xl font-bold text-slate-900 mt-1">R$ {{ vgv_fechado_mes|floatformat:2 }}</h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">Meta: <strong>R$ {{ meta_mensal|floatformat:0 }}</strong></p>
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100">
                 <div class="flex items-center justify-between text-xs mb-1">
                     <span class="text-slate-600 font-bold">Meta Atingida</span>
-                    <span class="font-extrabold text-emerald-600">{{ meta_progress_percent }}%</span>
+                    <span class="font-semibold text-slate-700">{{ meta_progress_percent }}%</span>
                 </div>
                 <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div class="bg-gradient-to-r from-emerald-500 to-teal-400 h-2 rounded-full transition-all duration-500" 
+                    <div class="bg-gradient-to-r bg-blue-600 h-2 rounded-full transition-all duration-500" 
                          style="width: {{ meta_progress_percent }}%"></div>
                 </div>
             </div>
         </div>
 
         <!-- KPI 2: Comissão Prevista & Realizada (6%) -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Comissão Realizada (6%)</p>
-                    <span class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">💼</span>
+                    <span class="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm">💼</span>
                 </div>
-                <h3 class="text-2xl font-black text-indigo-700 mt-1">R$ {{ comissao_realizada|floatformat:2 }}</h3>
+                <h3 class="text-2xl font-bold text-blue-800 mt-1">R$ {{ comissao_realizada|floatformat:2 }}</h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">Em Negociação: <strong>R$ {{ comissao_prevista|floatformat:2 }}</strong></p>
             </div>
 
@@ -108,13 +108,13 @@
         </div>
 
         <!-- KPI 3: Ticket Médio -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Ticket Médio de Venda</p>
                     <span class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-sm">🎯</span>
                 </div>
-                <h3 class="text-2xl font-black text-slate-900 mt-1">
+                <h3 class="text-2xl font-bold text-slate-900 mt-1">
                     {% if ticket_medio > 0 %}R$ {{ ticket_medio|floatformat:2 }}{% else %}R$ 0,00{% endif %}
                 </h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">Média por imóvel negociado</p>
@@ -122,24 +122,24 @@
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                 <span>Vendas no Mês:</span>
-                <span class="font-bold text-emerald-700">R$ {{ vgv_vendas_mes|floatformat:0 }}</span>
+                <span class="font-bold text-slate-800">R$ {{ vgv_vendas_mes|floatformat:0 }}</span>
             </div>
         </div>
 
         <!-- KPI 4: Tempo Médio de Ciclo & Conversão -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Ciclo Médio de Venda</p>
                     <span class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-sm">⏳</span>
                 </div>
-                <h3 class="text-2xl font-black text-purple-700 mt-1">{{ tempo_medio_ciclo }} dias</h3>
+                <h3 class="text-2xl font-bold text-purple-700 mt-1">{{ tempo_medio_ciclo }} dias</h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">Da entrada ao fechamento</p>
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                 <span>Taxa Geral de Conversão:</span>
-                <span class="font-extrabold text-purple-700">{{ taxa_conversao_geral }}%</span>
+                <span class="font-semibold text-purple-700">{{ taxa_conversao_geral }}%</span>
             </div>
         </div>
 
@@ -149,10 +149,10 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- Gráfico de Evolução do VGV Mensal -->
-        <div class="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col">
+        <div class="lg:col-span-2 bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                    <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide flex items-center gap-2">
                         <span>📊</span> Evolução Histórica do VGV Fechado (Últimos Meses)
                     </h3>
                     <p class="text-xs text-slate-500">Volume financeiro de negócios fechados mês a mês</p>
@@ -164,9 +164,9 @@
         </div>
 
         <!-- Funil de Vendas Step-by-Step -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
             <div>
-                <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wide mb-1 flex items-center gap-2">
+                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-1 flex items-center gap-2">
                     <span>🎯</span> Funil de Conversão & Gargalos
                 </h3>
                 <p class="text-xs text-slate-500 mb-4">Distribuição de leads e retenção por etapa</p>
@@ -179,7 +179,7 @@
                                 <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ item.stage.color }}"></span>
                                 {{ item.stage.name }}
                             </span>
-                            <span class="font-extrabold text-slate-900">{{ item.count }} leads ({{ item.percent }}%)</span>
+                            <span class="font-semibold text-slate-900">{{ item.count }} leads ({{ item.percent }}%)</span>
                         </div>
                         <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                             <div class="h-2 rounded-full transition-all duration-500" 
@@ -191,7 +191,7 @@
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100 text-center">
-                <p class="text-xs text-slate-500">Taxa de Sucesso (Ganhos vs Total): <strong class="text-emerald-600">{{ taxa_conversao_geral }}%</strong></p>
+                <p class="text-xs text-slate-500">Taxa de Sucesso (Ganhos vs Total): <strong class="text-slate-700">{{ taxa_conversao_geral }}%</strong></p>
             </div>
         </div>
 
@@ -201,9 +201,9 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         <!-- Gráfico de Donut: Origem dos Leads -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm">
             <div class="mb-4">
-                <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide flex items-center gap-2">
                     <span>🍩</span> Origem dos Leads (Canais de Aquisição)
                 </h3>
                 <p class="text-xs text-slate-500">Quais fontes de marketing trazem mais contatos</p>
@@ -214,9 +214,9 @@
         </div>
 
         <!-- Gráfico de Barras Horizontais: Motivos de Perda -->
-        <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm">
             <div class="mb-4">
-                <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide flex items-center gap-2">
                     <span>📉</span> Principais Motivos de Perda / Arquivamento
                 </h3>
                 <p class="text-xs text-slate-500">Identificação de gargalos operacionais e de produto</p>
@@ -230,15 +230,15 @@
 
     <!-- Linha 3: Ranking e Produtividade dos Corretores (Apenas para Gestor/Admin) -->
     {% if is_manager and agents_ranking %}
-    <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+    <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm space-y-4">
         <div class="flex items-center justify-between">
             <div>
-                <h3 class="text-sm font-extrabold text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide flex items-center gap-2">
                     <span>🏆</span> Ranking & Produtividade da Equipe de Vendas
                 </h3>
                 <p class="text-xs text-slate-500">Desempenho comparativo, visitas realizadas e cumprimento de metas</p>
             </div>
-            <span class="text-xs bg-amber-100 text-amber-900 px-3 py-1 rounded-full font-extrabold flex items-center gap-1">
+            <span class="text-xs bg-amber-100 text-amber-900 px-3 py-1 rounded-full font-semibold flex items-center gap-1">
                 👑 Painel Exclusivo de Gestão
             </span>
         </div>
@@ -273,7 +273,7 @@
                         </td>
                         <td class="py-3 px-4 text-center font-bold text-slate-700">{{ item.active_leads }}</td>
                         <td class="py-3 px-4 text-center font-bold text-purple-700">🏠 {{ item.visits_month }}</td>
-                        <td class="py-3 px-4 text-right font-black text-emerald-600 text-sm">
+                        <td class="py-3 px-4 text-right font-bold text-slate-700 text-sm">
                             R$ {{ item.vgv_won|floatformat:2 }}
                         </td>
                         <td class="py-3 px-4 text-center font-bold text-slate-800">

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-br" class="h-full bg-slate-50">
+<html lang="pt-br" class="h-full bg-[#f0f2f5]">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#1a56a0">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,26 +15,26 @@
     <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
     <title>{% block title %}CRM Imobiliário - Gestão & Vendas{% endblock %}</title>
     
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        brand: {
-                            50: '#f0fdf4',
-                            100: '#dcfce7',
-                            500: '#22c55e',
-                            600: '#16a34a',
-                            700: '#15803d',
-                            800: '#166534',
-                            900: '#14532d',
+                        primary: {
+                            50:  '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1a56a0',
                         },
-                        navy: {
-                            800: '#1e293b',
-                            900: '#0f172a',
-                            950: '#020617',
+                        surface: {
+                            DEFAULT: '#ffffff',
+                            muted: '#f0f2f5',
+                            border: '#e5e7eb',
                         }
                     }
                 }
@@ -42,34 +42,25 @@
         }
     </script>
     
-    <!-- HTMX CDN -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <!-- Alpine.js CDN -->
     <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
         [x-cloak] { display: none !important; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #c5cdd8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9aa8bc; }
 
-        /* Safe area for notched phones */
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
         .safe-top { padding-top: env(safe-area-inset-top, 0); }
-
-        /* Prevent body scroll when mobile menu open */
         body.menu-open { overflow: hidden; }
 
-        /* Smooth sidebar on mobile */
         @media (max-width: 1023px) {
             .sidebar-mobile {
                 position: fixed;
-                top: 0;
-                left: 0;
-                bottom: 0;
+                top: 0; left: 0; bottom: 0;
                 height: 100%;
                 transform: translateX(-100%);
             }
@@ -77,10 +68,18 @@
                 transform: translateX(0);
             }
         }
+
+        /* Visual de sistema: cards limpos */
+        .sys-card {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
     </style>
     {% block extra_head %}{% endblock %}
 </head>
-<body class="h-full flex overflow-hidden font-sans text-slate-800"
+<body class="h-full flex overflow-hidden font-sans text-slate-700 bg-[#f0f2f5]"
       x-data="{
           sidebarOpen: window.innerWidth >= 1024,
           mobileMenuOpen: false,
@@ -112,10 +111,8 @@
       hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
     <!-- Overlay mobile -->
-    <div x-show="mobileMenuOpen"
-         x-cloak
-         @click="closeMobile()"
-         class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden"
+    <div x-show="mobileMenuOpen" x-cloak @click="closeMobile()"
+         class="fixed inset-0 bg-slate-900/40 z-40 lg:hidden"
          x-transition:enter="transition-opacity ease-out duration-200"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
@@ -123,201 +120,197 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"></div>
 
-    <!-- Sidebar Principal -->
+    <!-- Sidebar clara estilo sistema -->
     <aside :class="[
-               isDesktop ? (sidebarOpen ? 'w-64' : 'w-20') : 'w-72 sidebar-mobile',
+               isDesktop ? (sidebarOpen ? 'w-60' : 'w-[68px]') : 'w-72 sidebar-mobile',
                (!isDesktop && mobileMenuOpen) ? 'sidebar-visible' : ''
            ]"
-           class="bg-slate-900 text-slate-300 flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out border-r border-slate-800 z-50 lg:relative lg:translate-x-0">
+           class="bg-white text-slate-600 flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out border-r border-slate-200 z-50 lg:relative lg:translate-x-0 shadow-sm">
         
-        <!-- Logo e Cabeçalho Sidebar -->
-        <div class="h-16 flex items-center justify-between px-4 border-b border-slate-800 bg-slate-950 safe-top">
-            <a href="{% url 'kanban' %}" class="flex items-center gap-3 overflow-hidden" @click="closeMobile()">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-emerald-500/20 flex-shrink-0">
-                    🏠
+        <!-- Logo -->
+        <div class="h-14 flex items-center justify-between px-3 border-b border-slate-200 bg-white safe-top">
+            <a href="{% url 'kanban' %}" class="flex items-center gap-2.5 overflow-hidden" @click="closeMobile()">
+                <div class="w-9 h-9 rounded-lg bg-primary-900 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    IC
                 </div>
-                <div x-show="isDesktop ? sidebarOpen : true" class="flex flex-col transition-opacity duration-300">
-                    <span class="font-extrabold text-white text-base tracking-tight leading-none">IMOBI<span class="text-emerald-400">CRM</span></span>
-                    <span class="text-[10px] text-slate-400 font-medium mt-0.5">Gestão Imobiliária 360°</span>
+                <div x-show="isDesktop ? sidebarOpen : true" class="flex flex-col">
+                    <span class="font-semibold text-slate-800 text-sm tracking-tight leading-none">Imobi<span class="text-primary-700">CRM</span></span>
+                    <span class="text-[10px] text-slate-400 mt-0.5">Gestão Imobiliária</span>
                 </div>
             </a>
-            <button @click="toggleSidebar()" class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition lg:block hidden">
-                <i data-lucide="chevrons-left" :class="sidebarOpen ? '' : 'rotate-180'" class="w-5 h-5 transition-transform duration-300"></i>
+            <button @click="toggleSidebar()" class="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition hidden lg:block">
+                <i data-lucide="chevrons-left" :class="sidebarOpen ? '' : 'rotate-180'" class="w-4 h-4 transition-transform duration-300"></i>
             </button>
-            <button @click="closeMobile()" class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition lg:hidden">
+            <button @click="closeMobile()" class="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition lg:hidden">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
 
-        <!-- Botão Ação Rápida -->
-        <div class="p-3" x-show="isDesktop ? sidebarOpen : true">
+        <!-- Ação rápida -->
+        <div class="p-2.5" x-show="isDesktop ? sidebarOpen : true">
             <div class="relative" x-data="{ dropdownOpen: false }">
                 <button @click="dropdownOpen = !dropdownOpen" 
-                        class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-900/30 transition text-sm">
-                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        class="w-full bg-primary-900 hover:bg-primary-800 text-white font-medium py-2 px-3 rounded-md flex items-center justify-center gap-2 transition text-sm">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
                     <span>Novo Registro</span>
-                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 ml-auto opacity-75"></i>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 ml-auto opacity-80"></i>
                 </button>
                 <div x-show="dropdownOpen" @click.away="dropdownOpen = false" x-cloak
-                     class="absolute left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl py-1 z-50 text-sm">
-                    <a href="{% url 'property_create' %}" @click="closeMobile()" class="flex items-center gap-2 px-3 py-2 text-slate-200 hover:bg-slate-700 hover:text-emerald-400">
-                        <i data-lucide="building-2" class="w-4 h-4 text-emerald-400"></i> Cadastrar Imóvel (Completo)
+                     class="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-50 text-sm">
+                    <a href="{% url 'property_create' %}" @click="closeMobile()" class="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50">
+                        <i data-lucide="building-2" class="w-4 h-4 text-slate-500"></i> Cadastrar Imóvel
                     </a>
-                    <button @click="dropdownOpen = false; quickPropertyModal = true; closeMobile()" class="w-full text-left flex items-center gap-2 px-3 py-2 text-slate-200 hover:bg-slate-700 hover:text-amber-400">
-                        <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i> Captação Rápida (30s)
+                    <button @click="dropdownOpen = false; quickPropertyModal = true; closeMobile()" class="w-full text-left flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50">
+                        <i data-lucide="zap" class="w-4 h-4 text-slate-500"></i> Captação Rápida
                     </button>
-                    <div class="border-t border-slate-700 my-1"></div>
-                    <a href="/admin/core/person/add/" @click="closeMobile()" class="flex items-center gap-2 px-3 py-2 text-slate-200 hover:bg-slate-700 hover:text-blue-400">
-                        <i data-lucide="user-plus" class="w-4 h-4 text-blue-400"></i> Novo Cliente / Contato
+                    <div class="border-t border-slate-100 my-1"></div>
+                    <a href="/admin/core/person/add/" @click="closeMobile()" class="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50">
+                        <i data-lucide="user-plus" class="w-4 h-4 text-slate-500"></i> Novo Cliente
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Links de Navegação -->
-        <nav class="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+        <!-- Navegação -->
+        <nav class="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto">
             <a href="{% url 'dashboard' %}" @click="closeMobile()"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition group
-                      {% if 'dashboard' in request.path %}bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-                <i data-lucide="bar-chart-3" class="w-5 h-5 flex-shrink-0 text-indigo-400"></i>
-                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Dashboard & Indicadores</span>
+               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition
+                      {% if 'dashboard' in request.path %}bg-primary-50 text-primary-800 border-l-2 border-primary-700{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent{% endif %}">
+                <i data-lucide="bar-chart-3" class="w-[18px] h-[18px] flex-shrink-0 {% if 'dashboard' in request.path %}text-primary-700{% else %}text-slate-400{% endif %}"></i>
+                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Dashboard</span>
             </a>
 
             <a href="{% url 'kanban' %}" @click="closeMobile()"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition group
-                      {% if request.resolver_match.url_name == 'kanban' %}bg-emerald-600/15 text-emerald-400 border border-emerald-500/30 font-semibold{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-                <i data-lucide="columns-3" class="w-5 h-5 flex-shrink-0 text-emerald-400"></i>
-                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Funil de Vendas (Kanban)</span>
+               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition
+                      {% if request.resolver_match.url_name == 'kanban' %}bg-primary-50 text-primary-800 border-l-2 border-primary-700{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent{% endif %}">
+                <i data-lucide="columns-3" class="w-[18px] h-[18px] flex-shrink-0 {% if request.resolver_match.url_name == 'kanban' %}text-primary-700{% else %}text-slate-400{% endif %}"></i>
+                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Funil de Vendas</span>
             </a>
 
             <a href="{% url 'property_list' %}" @click="closeMobile()"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition group
-                      {% if 'properties' in request.path %}bg-emerald-600/15 text-emerald-400 border border-emerald-500/30 font-semibold{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-                <i data-lucide="building" class="w-5 h-5 flex-shrink-0 text-teal-400"></i>
-                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Imóveis (Estoque & Captação)</span>
+               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition
+                      {% if 'properties' in request.path %}bg-primary-50 text-primary-800 border-l-2 border-primary-700{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent{% endif %}">
+                <i data-lucide="building" class="w-[18px] h-[18px] flex-shrink-0 {% if 'properties' in request.path %}text-primary-700{% else %}text-slate-400{% endif %}"></i>
+                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Imóveis</span>
             </a>
 
             <a href="/admin/core/person/" @click="closeMobile()"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition text-slate-300 hover:bg-slate-800 hover:text-white group">
-                <i data-lucide="users" class="w-5 h-5 flex-shrink-0 text-blue-400"></i>
-                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Clientes & Preferências</span>
+               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent">
+                <i data-lucide="users" class="w-[18px] h-[18px] flex-shrink-0 text-slate-400"></i>
+                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Clientes</span>
             </a>
 
             <a href="{% url 'visit_schedule' %}" @click="closeMobile()"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition group
-                      {% if 'visits' in request.path %}bg-purple-600/20 text-purple-400 border border-purple-500/30 font-semibold{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-                <i data-lucide="calendar-check" class="w-5 h-5 flex-shrink-0 text-purple-400"></i>
-                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Visitas & Controle de Chaves</span>
+               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition
+                      {% if 'visits' in request.path %}bg-primary-50 text-primary-800 border-l-2 border-primary-700{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent{% endif %}">
+                <i data-lucide="calendar-check" class="w-[18px] h-[18px] flex-shrink-0 {% if 'visits' in request.path %}text-primary-700{% else %}text-slate-400{% endif %}"></i>
+                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Visitas</span>
             </a>
 
             <a href="{% url 'task_list' %}" @click="closeMobile()"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition group
-                      {% if 'tasks' in request.path %}bg-amber-600/20 text-amber-400 border border-amber-500/30 font-semibold{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-                <i data-lucide="clock" class="w-5 h-5 flex-shrink-0 text-amber-400"></i>
-                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Atividades & Follow-up</span>
+               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition
+                      {% if 'tasks' in request.path %}bg-primary-50 text-primary-800 border-l-2 border-primary-700{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent{% endif %}">
+                <i data-lucide="clock" class="w-[18px] h-[18px] flex-shrink-0 {% if 'tasks' in request.path %}text-primary-700{% else %}text-slate-400{% endif %}"></i>
+                <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Atividades</span>
             </a>
 
             <a href="{% url 'whatsapp_template_list' %}" @click="closeMobile()"
-               class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition group
-                      {% if 'templates' in request.path %}bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 font-semibold{% else %}text-slate-300 hover:bg-slate-800 hover:text-white{% endif %}">
-                <i data-lucide="message-circle" class="w-5 h-5 flex-shrink-0 text-green-400"></i>
+               class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[13px] font-medium transition
+                      {% if 'templates' in request.path %}bg-primary-50 text-primary-800 border-l-2 border-primary-700{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-2 border-transparent{% endif %}">
+                <i data-lucide="message-circle" class="w-[18px] h-[18px] flex-shrink-0 {% if 'templates' in request.path %}text-primary-700{% else %}text-slate-400{% endif %}"></i>
                 <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Templates WhatsApp</span>
             </a>
 
-            <div class="pt-4 mt-4 border-t border-slate-800 space-y-1">
+            <div class="pt-3 mt-2 border-t border-slate-100 space-y-0.5">
                 <a href="{% url 'portal_xml_feed' %}" target="_blank"
-                   class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition text-slate-400 hover:bg-slate-800 hover:text-teal-400 group">
-                    <i data-lucide="rss" class="w-4 h-4 flex-shrink-0 text-teal-400"></i>
+                   class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12px] font-medium transition text-slate-500 hover:bg-slate-50 hover:text-slate-700 border-l-2 border-transparent">
+                    <i data-lucide="rss" class="w-4 h-4 flex-shrink-0 text-slate-400"></i>
                     <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Feed XML Portais</span>
                 </a>
-
                 <a href="/admin/" @click="closeMobile()"
-                   class="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition text-slate-400 hover:bg-slate-800 hover:text-white group">
+                   class="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12px] font-medium transition text-slate-500 hover:bg-slate-50 hover:text-slate-700 border-l-2 border-transparent">
                     <i data-lucide="shield-check" class="w-4 h-4 flex-shrink-0 text-slate-400"></i>
-                    <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Administração & Gestão</span>
+                    <span x-show="isDesktop ? sidebarOpen : true" class="truncate">Administração</span>
                 </a>
             </div>
         </nav>
 
-        <!-- Perfil do Usuário Logado -->
-        <div class="p-3 border-t border-slate-800 bg-slate-950 flex items-center gap-3 safe-bottom">
-            <div class="w-9 h-9 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+        <!-- Perfil -->
+        <div class="p-2.5 border-t border-slate-200 bg-slate-50 flex items-center gap-2.5 safe-bottom">
+            <div class="w-8 h-8 rounded-full bg-primary-800 text-white flex items-center justify-center font-semibold text-xs flex-shrink-0">
                 {% if request.user.first_name %}{{ request.user.first_name|slice:":1" }}{% else %}U{% endif %}
             </div>
             <div x-show="isDesktop ? sidebarOpen : true" class="flex-1 min-w-0">
-                <p class="text-xs font-semibold text-white truncate">
+                <p class="text-xs font-medium text-slate-800 truncate">
                     {{ request.user.get_full_name|default:request.user.username }}
                 </p>
-                <p class="text-[11px] text-emerald-400 truncate">
-                    {% if request.user.profile.is_manager %}👑 Gestor / Admin{% else %}💼 Corretor de Imóveis{% endif %}
+                <p class="text-[10px] text-slate-500 truncate">
+                    {% if request.user.profile.is_manager %}Gestor / Admin{% else %}Corretor{% endif %}
                 </p>
             </div>
         </div>
     </aside>
 
-    <!-- Conteúdo Principal -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-slate-100">
+    <!-- Conteúdo principal -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
         
-        <!-- Header Superior -->
-        <header class="h-14 sm:h-16 bg-white border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between flex-shrink-0 shadow-sm safe-top">
-            <div class="flex items-center gap-2 sm:gap-4 min-w-0">
-                <!-- Hamburger mobile -->
+        <!-- Top bar azul sistema -->
+        <header class="h-12 sm:h-14 bg-primary-900 text-white px-3 sm:px-5 flex items-center justify-between flex-shrink-0 safe-top">
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0">
                 <button @click="toggleSidebar()"
-                        class="lg:hidden p-2 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition flex-shrink-0"
+                        class="lg:hidden p-1.5 -ml-1 rounded text-white/80 hover:bg-white/10 transition flex-shrink-0"
                         aria-label="Abrir menu">
                     <i data-lucide="menu" class="w-5 h-5"></i>
                 </button>
-                <h1 class="text-base sm:text-xl font-bold text-slate-800 flex items-center gap-2 truncate">
-                    {% block header_title %}🏠 CRM Imobiliário{% endblock %}
+                <h1 class="text-sm sm:text-base font-medium tracking-tight truncate text-white/95">
+                    {% block header_title %}CRM Imobiliário{% endblock %}
                 </h1>
             </div>
 
-            <!-- Ações e Alertas do Topbar -->
-            <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-                <div class="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Sistema Operacional</span>
+            <div class="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                <div class="hidden md:flex items-center gap-1.5 text-[11px] text-white/70">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    <span>Online</span>
                 </div>
-
-                <a href="{% url 'property_create' %}" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-2.5 sm:px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
-                    <i data-lucide="plus" class="w-4 h-4"></i>
-                    <span class="hidden xs:inline sm:inline">Novo Imóvel</span>
+                <a href="{% url 'property_create' %}" class="bg-white/15 hover:bg-white/25 text-white text-xs font-medium px-2.5 sm:px-3 py-1.5 rounded transition flex items-center gap-1.5 border border-white/20">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                    <span class="hidden sm:inline">Novo Imóvel</span>
                 </a>
             </div>
         </header>
 
-        <!-- Mensagens Django / Toast Alerts -->
         {% if messages %}
-        <div class="px-3 sm:px-6 pt-3 sm:pt-4 space-y-2">
+        <div class="px-3 sm:px-5 pt-3 space-y-2">
             {% for message in messages %}
-            <div class="p-3 rounded-lg text-sm font-medium flex items-center justify-between
-                        {% if message.tags == 'success' %}bg-emerald-100 text-emerald-800 border border-emerald-300
-                        {% elif message.tags == 'error' %}bg-red-100 text-red-800 border border-red-300
-                        {% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+            <div class="px-3 py-2 rounded-md text-sm font-medium flex items-center justify-between border
+                        {% if message.tags == 'success' %}bg-green-50 text-green-800 border-green-200
+                        {% elif message.tags == 'error' %}bg-red-50 text-red-800 border-red-200
+                        {% else %}bg-blue-50 text-blue-800 border-blue-200{% endif %}">
                 <span>{{ message }}</span>
             </div>
             {% endfor %}
         </div>
         {% endif %}
 
-        <!-- Área de Conteúdo da Página -->
-        <main class="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 safe-bottom">
+        <main class="flex-1 overflow-y-auto p-3 sm:p-4 md:p-5 safe-bottom">
             {% block content %}{% endblock %}
         </main>
     </div>
 
-    <!-- Modal de Captação Rápida de Imóvel (30 segundos) -->
+    <!-- Modal Captação Rápida -->
     <div x-show="quickPropertyModal" x-cloak 
-         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4 overflow-y-auto">
+         class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-slate-900/50 p-0 sm:p-4 overflow-y-auto">
         <div @click.away="quickPropertyModal = false" 
-             class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-lg w-full p-5 sm:p-6 border border-slate-200 relative max-h-[92vh] overflow-y-auto safe-bottom">
+             class="bg-white rounded-t-xl sm:rounded-lg shadow-xl max-w-lg w-full p-5 sm:p-6 border border-slate-200 relative max-h-[92vh] overflow-y-auto safe-bottom">
             
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div class="flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-sm">⚡</span>
+                    <span class="w-8 h-8 rounded-md bg-slate-100 text-slate-600 flex items-center justify-center text-sm">
+                        <i data-lucide="zap" class="w-4 h-4"></i>
+                    </span>
                     <div>
-                        <h3 class="text-base font-bold text-slate-800">Captação Rápida de Imóvel</h3>
-                        <p class="text-xs text-slate-500">Capture os dados essenciais em 30 segundos</p>
+                        <h3 class="text-sm font-semibold text-slate-800">Captação Rápida de Imóvel</h3>
+                        <p class="text-xs text-slate-500">Dados essenciais em poucos segundos</p>
                     </div>
                 </div>
                 <button @click="quickPropertyModal = false" class="text-slate-400 hover:text-slate-600 p-1">
@@ -328,23 +321,23 @@
             <form action="{% url 'property_quick_create' %}" method="POST" class="space-y-3">
                 {% csrf_token %}
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Título / Resumo do Imóvel *</label>
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Título / Resumo *</label>
                     <input type="text" name="title" required placeholder="Ex: Apt 3 quartos Ed. Solar no Renascença" 
-                           class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none">
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Finalidade *</label>
-                        <select name="transaction_type" class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg outline-none">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Finalidade *</label>
+                        <select name="transaction_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-1 focus:ring-primary-500">
                             <option value="sale">Venda</option>
                             <option value="rent">Locação</option>
                             <option value="both">Venda e Locação</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Tipo *</label>
-                        <select name="property_type" class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg outline-none">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Tipo *</label>
+                        <select name="property_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-1 focus:ring-primary-500">
                             <option value="apartment">Apartamento</option>
                             <option value="house">Casa / Sobrado</option>
                             <option value="penthouse">Cobertura</option>
@@ -356,45 +349,41 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Bairro *</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Bairro *</label>
                         <input type="text" name="neighborhood" required placeholder="Ex: Renascença" 
-                               class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg outline-none">
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-1 focus:ring-primary-500">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Valor Previsto (R$) *</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Valor Previsto (R$) *</label>
                         <input type="number" step="0.01" name="price" required placeholder="Ex: 650000.00" 
-                               class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg outline-none">
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-1 focus:ring-primary-500">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Quartos</label>
-                        <input type="number" name="bedrooms" value="3" class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg outline-none">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Quartos</label>
+                        <input type="number" name="bedrooms" value="3" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Vagas</label>
-                        <input type="number" name="parking_spaces" value="2" class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg outline-none">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Vagas</label>
+                        <input type="number" name="parking_spaces" value="2" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none">
                     </div>
                 </div>
 
                 <div class="pt-2 border-t border-slate-100">
-                    <p class="text-xs font-bold text-slate-700 mb-2">Dados do Proprietário (Privado)</p>
+                    <p class="text-xs font-medium text-slate-600 mb-2">Dados do Proprietário (Privado)</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <input type="text" name="owner_name" placeholder="Nome do Proprietário" 
-                                   class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg outline-none">
-                        </div>
-                        <div>
-                            <input type="text" name="owner_phone" placeholder="WhatsApp / Telefone" 
-                                   class="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg outline-none">
-                        </div>
+                        <input type="text" name="owner_name" placeholder="Nome do Proprietário" 
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none">
+                        <input type="text" name="owner_phone" placeholder="WhatsApp / Telefone" 
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none">
                     </div>
                 </div>
 
                 <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
-                    <button type="button" @click="quickPropertyModal = false" class="px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
-                    <button type="submit" class="px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow">Salvar Rascunho</button>
+                    <button type="button" @click="quickPropertyModal = false" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-md">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-medium text-white bg-primary-900 hover:bg-primary-800 rounded-md">Salvar Rascunho</button>
                 </div>
             </form>
         </div>
@@ -405,8 +394,6 @@
         document.body.addEventListener('htmx:afterSwap', function() {
             lucide.createIcons();
         });
-
-        // Register Service Worker (PWA)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('/static/js/sw.js')
