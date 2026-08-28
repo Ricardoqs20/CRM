@@ -245,7 +245,11 @@
                     {{ request.user.get_full_name|default:request.user.username }}
                 </p>
                 <p class="text-[10px] text-slate-500 truncate">
-                    {% if request.user.profile.is_manager %}Gestor / Admin{% else %}Corretor{% endif %}
+                    {% if request.user.is_authenticated %}
+                        {% if request.user.is_superuser or request.user.is_staff %}Admin
+                        {% elif request.user.profile and request.user.profile.is_manager %}Gestor
+                        {% else %}Corretor{% endif %}
+                    {% else %}Visitante{% endif %}
                 </p>
             </div>
         </div>

@@ -100,7 +100,7 @@
 
                             <p class="text-xs text-slate-600 font-medium">{{ m.lead.title }}</p>
                             <p class="text-[11px] text-slate-500 mt-0.5">
-                                Orçamento: <strong class="text-slate-800">R$ {{ m.lead.budget|floatformat:0 }}</strong> • Corretor: <strong>{{ m.lead.agent.get_full_name|default:m.lead.agent.username }}</strong>
+                                Orçamento: <strong class="text-slate-800">R$ {{ m.lead.budget|floatformat:0 }}</strong> • Corretor: <strong>{% if m.lead.agent %}{{ m.lead.agent.get_full_name|default:m.lead.agent.username }}{% else %}—{% endif %}</strong>
                             </p>
 
                             {% if m.reasons %}
@@ -275,7 +275,7 @@
                         <span>Dados de Captação</span>
                     </h3>
                     <span class="text-[11px] font-semibold text-slate-500">
-                        Captador: <strong>{{ property.captured_by.first_name|default:property.captured_by.username|default:"Imobiliária" }}</strong>
+                        Captador: <strong>{% if property.captured_by %}{{ property.captured_by.get_full_name|default:property.captured_by.username }}{% else %}Imobiliária{% endif %}</strong>
                     </span>
                 </div>
 
@@ -323,7 +323,7 @@
                     </div>
                     <h4 class="text-xs font-bold text-slate-800">Contato do Proprietário Privado</h4>
                     <p class="text-[11px] text-slate-500 mt-1 leading-snug">
-                        Esta captação pertence ao corretor <strong>{{ property.captured_by.first_name|default:property.captured_by.username }}</strong>.
+                        Esta captação pertence ao corretor <strong>{% if property.captured_by %}{{ property.captured_by.get_full_name|default:property.captured_by.username }}{% else %}Imobiliária{% endif %}</strong>.
                         Entre em contato com ele para alinhar propostas ou obter o contato do proprietário.
                     </p>
                 </div>

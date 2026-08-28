@@ -61,7 +61,7 @@
                         </span>
                     </td>
                     <td class="px-4 py-3 text-xs text-slate-600">
-                        {{ prop.captured_by.first_name|default:prop.captured_by.username|default:"Imobiliária" }}
+                        {% if prop.captured_by %}{{ prop.captured_by.get_full_name|default:prop.captured_by.username }}{% else %}Imobiliária{% endif %}
                     </td>
                     <td class="px-4 py-3 text-right">
                         <div class="flex items-center justify-end gap-1.5">
@@ -174,7 +174,7 @@
             <!-- Rodapé do Card com Ações -->
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span class="text-[11px] text-slate-500">
-                    Captador: <strong>{{ prop.captured_by.first_name|default:prop.captured_by.username|default:"Imobiliária" }}</strong>
+                    Captador: <strong>{% if prop.captured_by %}{{ prop.captured_by.get_full_name|default:prop.captured_by.username }}{% else %}Imobiliária{% endif %}</strong>
                 </span>
 
                 <div class="flex items-center gap-2">
