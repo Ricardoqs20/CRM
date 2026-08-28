@@ -1,0 +1,46 @@
+<!-- Quadro Kanban com as 6 Colunas do Funil Imobiliário -->
+<div class="flex gap-4 overflow-x-auto pb-6 items-start select-none">
+    {% for stage in stages %}
+    <div class="bg-slate-200/80 rounded-2xl p-3 w-80 flex-shrink-0 flex flex-col max-h-[calc(100vh-210px)] border border-slate-300/60 shadow-xs"
+         ondragover="handleDragOver(event)" 
+         ondrop="handleDrop(event, {{ stage.id }}, '{{ stage.stage_type }}')"
+         id="stage-column-{{ stage.id }}">
+        
+        <!-- Topo da Coluna: Nome do Estágio, Contagem e Soma Financeira R$ -->
+        <div class="pb-3 border-b border-slate-300/80 mb-3 flex flex-col gap-1">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ stage.color }};"></span>
+                    <h3 class="font-extrabold text-slate-800 text-xs uppercase tracking-wider">{{ stage.name }}</h3>
+                </div>
+                <span class="bg-white text-slate-700 text-xs px-2 py-0.5 rounded-full font-black shadow-xs border border-slate-200">
+                    {{ stage.leads.count }}
+                </span>
+            </div>
+
+            <!-- Resumo Financeiro Acumulado na Coluna (VGV Potencial) -->
+            <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                <span>VGV Acumulado:</span>
+                <span class="font-extrabold text-slate-800">R$ {{ stage.total_budget|floatformat:2 }}</span>
+            </div>
+        </div>
+
+        <!-- Lista de Cards da Etapa -->
+        <div class="space-y-3 overflow-y-auto flex-1 pr-1" id="stage-cards-{{ stage.id }}">
+            {% for lead in stage.leads.all %}
+                {% include 'kanban/partials/lead_card.html' with lead=lead %}
+            {% empty %}
+            <div class="py-12 text-center text-slate-400 text-xs italic flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-xl bg-slate-100/50">
+                <i data-lucide="inbox" class="w-6 h-6 stroke-1 mb-1"></i>
+                <span>Nenhum lead nesta etapa</span>
+            </div>
+            {% endfor %}
+        </div>
+
+    </div>
+    {% empty %}
+    <div class="col-span-6 w-full text-center py-16 bg-white rounded-2xl border border-slate-200">
+        <p class="text-sm font-semibold text-slate-600">Nenhum estágio configurado para este funil.</p>
+    </div>
+    {% endfor %}
+</div>

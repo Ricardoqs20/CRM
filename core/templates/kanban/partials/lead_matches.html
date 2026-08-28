@@ -1,0 +1,87 @@
+<!-- Seção de Match Automático: Imóveis Compatíveis com o Lead -->
+<div id="lead-matches-container" class="space-y-3">
+    
+    <div class="flex items-center justify-between">
+        <h3 class="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+            <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
+            <span>Imóveis Compatíveis no Estoque (Match)</span>
+        </h3>
+        <span class="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+            {{ matching_properties|length }} opções
+        </span>
+    </div>
+
+    <div class="space-y-2.5">
+        {% for item in matching_properties %}
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-xs hover:border-emerald-400 transition flex flex-col gap-2">
+            
+            <!-- Topo do Item: Score + Código + Bairro -->
+            <div class="flex items-start justify-between">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <!-- Badge de Match com gradiente de cor baseado no score -->
+                        <span class="text-[11px] font-black px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs
+                                     {% if item.score >= 85 %}bg-emerald-600 text-white
+                                     {% elif item.score >= 70 %}bg-teal-600 text-white
+                                     {% else %}bg-amber-500 text-white{% endif %}">
+                            {% if item.score >= 85 %}🔥{% elif item.score >= 70 %}⭐{% else %}⚡{% endif %}
+                            {{ item.score }}% Match
+                        </span>
+
+                        <a href="{% url 'property_detail' item.property.id %}" target="_blank" 
+                           class="font-mono font-bold text-xs text-indigo-900 hover:underline">
+                            [{{ item.property.code }}]
+                        </a>
+                    </div>
+
+                    <h4 class="font-bold text-xs text-slate-800 mt-1 line-clamp-1">
+                        {{ item.property.title }}
+                    </h4>
+                    <p class="text-[11px] text-slate-500">📍 {{ item.property.neighborhood }} • 🛏️ {{ item.property.bedrooms }} qts • 📐 {{ item.property.usable_area|floatformat:0 }}m²</p>
+                </div>
+
+                <span class="text-xs font-black text-emerald-700 whitespace-nowrap">
+                    R$ {{ item.property.sale_price }}
+                </span>
+            </div>
+
+            <!-- Motivos de Afinidade -->
+            {% if item.reasons %}
+            <div class="flex flex-wrap gap-1 text-[10px]">
+                {% for r in item.reasons %}
+                <span class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                    ✓ {{ r }}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Botões de Ação: WhatsApp & Vincular -->
+            <div class="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                <!-- Botão de Vincular / Desvincular via HTMX -->
+                <button hx-post="{% url 'lead_toggle_property_link' lead.id item.property.id %}" 
+                        hx-target="#lead-matches-container" 
+                        hx-swap="outerHTML" 
+                        class="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg border transition flex items-center gap-1
+                               {% if item.is_linked %}bg-emerald-50 text-emerald-700 border-emerald-300 font-bold{% else %}bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100{% endif %}">
+                    <i data-lucide="{% if item.is_linked %}check{% else %}plus{% endif %}" class="w-3 h-3"></i>
+                    <span>{% if item.is_linked %}Vinculado{% else %}Vincular ao Lead{% endif %}</span>
+                </button>
+
+                <!-- Botão de Compartilhar no WhatsApp -->
+                <a href="{{ item.whatsapp_url }}" target="_blank" 
+                   class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1.5">
+                    <i data-lucide="send" class="w-3 h-3"></i>
+                    <span>Enviar no WhatsApp</span>
+                </a>
+            </div>
+
+        </div>
+        {% empty %}
+        <div class="text-center py-6 bg-slate-50 rounded-xl border border-slate-200">
+            <p class="text-xs text-slate-500">Nenhum imóvel no estoque atende ao perfil mínimo (min 40% match).</p>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>

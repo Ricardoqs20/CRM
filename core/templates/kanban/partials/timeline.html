@@ -1,0 +1,70 @@
+<!-- Timeline de Histórico e Interações do Lead -->
+<div id="timeline-container" class="space-y-4">
+    
+    <!-- Formulário Rápido para Adicionar Nova Interação -->
+    <form hx-post="{% url 'lead_add_note' lead.id %}" 
+          hx-target="#timeline-container" 
+          hx-swap="outerHTML" 
+          class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+        {% csrf_token %}
+        
+        <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-700 flex items-center gap-1">
+                <i data-lucide="edit" class="w-3.5 h-3.5 text-emerald-600"></i>
+                <span>Registrar Interação / Anotação</span>
+            </span>
+            <select name="action_type" class="text-[11px] bg-white border border-slate-200 rounded-md px-2 py-1 outline-none font-semibold">
+                <option value="note">📝 Anotação Interna</option>
+                <option value="whatsapp_sent">💬 Mensagem WhatsApp</option>
+                <option value="call_logged">📞 Ligação Telefônica</option>
+                <option value="proposal_sent">📑 Proposta / Negociação</option>
+            </select>
+        </div>
+
+        <textarea name="content" rows="2" required 
+                  placeholder="Ex: Liguei para o cliente, prefere visita no sábado de manhã..."
+                  class="w-full text-xs p-2.5 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500"></textarea>
+
+        <div class="flex justify-end">
+            <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition flex items-center gap-1">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>Salvar no Histórico</span>
+            </button>
+        </div>
+    </form>
+
+    <!-- Lista Cronológica de Interações -->
+    <div class="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
+        {% for log in lead.interactions.all %}
+        <div class="relative group">
+            <!-- Ícone na linha do tempo -->
+            <div class="absolute -left-6 top-1 w-5 h-5 rounded-full bg-white border-2 border-emerald-500 flex items-center justify-center text-[10px] text-emerald-700 font-bold shadow-xs">
+                {% if log.action_type == 'whatsapp_sent' %}💬
+                {% elif log.action_type == 'call_logged' %}📞
+                {% elif log.action_type == 'stage_change' %}🔄
+                {% elif log.action_type == 'visit_scheduled' %}📅
+                {% elif log.action_type == 'visit_completed' %}🏁
+                {% elif log.action_type == 'proposal_sent' %}🤝
+                {% else %}📝{% endif %}
+            </div>
+
+            <!-- Card da Interação -->
+            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+                <div class="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                    <span class="font-bold text-slate-700">{{ log.get_action_type_display }}</span>
+                    <span class="font-mono">{{ log.created_at|date:"d/m/Y H:i" }}</span>
+                </div>
+                <p class="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{{ log.content }}</p>
+                {% if log.user %}
+                <div class="mt-1 text-[10px] text-slate-400">
+                    Registrado por: <strong>{{ log.user.get_full_name|default:log.user.username }}</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-xs text-slate-400 italic text-center py-4">Nenhuma interação registrada ainda.</p>
+        {% endfor %}
+    </div>
+
+</div>

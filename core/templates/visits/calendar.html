@@ -1,0 +1,275 @@
+{% extends 'base.html' %}
+
+{% block title %}Agenda de Visitas & Controle de Chaves - CRM Imobiliário{% endblock %}
+
+{% block header_title %}
+<span class="flex items-center gap-2">
+    <span class="p-2 rounded-xl bg-purple-100 text-purple-700 text-lg">📅</span>
+    <span>Agenda de Visitas & Controle de Chaves</span>
+</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto" x-data="{ feedbackModalOpen: false, currentVisitId: null, scheduleModalOpen: false }">
+
+    <!-- KPI / Top Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Visitas da Semana</p>
+                <h3 class="text-2xl font-black text-slate-900 mt-1">{{ total_visits_week }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xl">
+                📅
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Confirmadas</p>
+                <h3 class="text-2xl font-black text-emerald-600 mt-1">{{ confirmed_visits_count }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xl">
+                ✅
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Chaves Retiradas</p>
+                <h3 class="text-2xl font-black text-amber-600 mt-1">{{ keys_with_agent_count }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xl">
+                🔑
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border {% if overdue_keys_count > 0 %}border-red-300 bg-red-50/50{% else %}border-slate-200{% endif %} shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase {% if overdue_keys_count > 0 %}text-red-700 font-bold{% else %}text-slate-500{% endif %} tracking-wider">Chaves Atrasadas (&gt;4h)</p>
+                <h3 class="text-2xl font-black {% if overdue_keys_count > 0 %}text-red-600 animate-pulse{% else %}text-slate-700{% endif %} mt-1">
+                    {{ overdue_keys_count }}
+                </h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl {% if overdue_keys_count > 0 %}bg-red-100 text-red-600 animate-bounce{% else %}bg-slate-100 text-slate-500{% endif %} flex items-center justify-center font-bold text-xl">
+                🚨
+            </div>
+        </div>
+    </div>
+
+    <!-- Barra de Controle & Filtros -->
+    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <!-- Navegação da Semana -->
+        <div class="flex items-center gap-2">
+            <a href="?week_offset={{ prev_week_offset }}{% if selected_agent %}&agent={{ selected_agent }}{% endif %}" 
+               class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i> Semana Anterior
+            </a>
+
+            <div class="px-4 py-2 bg-purple-50 text-purple-900 border border-purple-200 rounded-xl text-xs font-extrabold text-center">
+                {{ week_start|date:"d/m" }} até {{ week_end|date:"d/m/Y" }}
+                {% if week_offset == 0 %}
+                <span class="ml-2 px-1.5 py-0.5 bg-purple-600 text-white rounded-md text-[10px] uppercase tracking-wide">Semana Atual</span>
+                {% endif %}
+            </div>
+
+            <a href="?week_offset={{ next_week_offset }}{% if selected_agent %}&agent={{ selected_agent }}{% endif %}" 
+               class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 transition">
+                Próxima Semana <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </a>
+        </div>
+
+        <!-- Filtro por Corretor + Botão Nova Visita -->
+        <div class="flex items-center gap-3 w-full md:w-auto">
+            <form method="GET" class="flex items-center gap-2 flex-1 md:flex-initial">
+                <input type="hidden" name="week_offset" value="{{ week_offset }}">
+                <select name="agent" onchange="this.form.submit()" 
+                        class="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500">
+                    <option value="">Todos os Corretores</option>
+                    {% for ag in agents %}
+                    <option value="{{ ag.id }}" {% if selected_agent == ag.id|stringformat:"i" %}selected{% endif %}>
+                        {{ ag.get_full_name|default:ag.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <button @click="scheduleModalOpen = true"
+                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-purple-600/20 transition whitespace-nowrap">
+                <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+                <span>Agendar Nova Visita</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Alerta de Chave em Atraso (se houver) -->
+    {% if overdue_keys %}
+    <div class="bg-red-50 border-2 border-red-400 rounded-2xl p-4 text-red-900 shadow-md flex items-start gap-3">
+        <span class="text-2xl">🚨</span>
+        <div class="flex-1">
+            <h4 class="font-black text-sm uppercase tracking-wide text-red-800">Atenção: Protocolo de Chaves com Devolução em Atraso</h4>
+            <p class="text-xs text-red-700 mt-0.5">As seguintes chaves foram retiradas há mais de 4 horas ou ultrapassaram o horário limite da visita:</p>
+            <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                {% for ov_visit in overdue_keys %}
+                <div class="bg-white/80 p-2.5 rounded-xl border border-red-200 flex items-center justify-between text-xs">
+                    <div>
+                        <span class="font-bold text-slate-900">Imóvel {{ ov_visit.visit_property.code }}</span> ({{ ov_visit.visit_property.title|truncatechars:25 }})
+                        <p class="text-[11px] text-slate-600">Corretor: <strong class="text-red-700">{{ ov_visit.agent.get_full_name|default:ov_visit.agent.username }}</strong> | Retirada: {{ ov_visit.key_withdrawn_at|date:"d/m H:i" }}</p>
+                    </div>
+                    <form method="POST" action="{% url 'visit_key_action' ov_visit.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="return">
+                        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 shadow-sm transition">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> Registrar Devolução
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Grade do Calendário Semanal (7 Colunas) -->
+    <div class="grid grid-cols-1 md:grid-cols-7 gap-3">
+        {% for day in days_data %}
+        <div class="flex flex-col bg-white rounded-2xl border {% if day.is_today %}border-purple-400 ring-2 ring-purple-100 shadow-md{% else %}border-slate-200 shadow-sm{% endif %} min-h-[450px]">
+            <!-- Cabeçalho do Dia -->
+            <div class="p-3 border-b {% if day.is_today %}bg-purple-600 text-white rounded-t-2xl{% else %}bg-slate-50 text-slate-700 rounded-t-2xl border-slate-100{% endif %} flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] font-bold uppercase tracking-wider block {% if day.is_today %}text-purple-100{% else %}text-slate-500{% endif %}">
+                        {{ day.weekday_name }}
+                    </span>
+                    <span class="text-base font-black">
+                        {{ day.date|date:"d/m" }}
+                    </span>
+                </div>
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-bold {% if day.is_today %}bg-white/20 text-white{% else %}bg-slate-200 text-slate-700{% endif %}">
+                    {{ day.visits|length }}
+                </span>
+            </div>
+
+            <!-- Lista de Visitas do Dia -->
+            <div class="p-2.5 space-y-2.5 flex-1 overflow-y-auto max-h-[600px]">
+                {% for visit in day.visits %}
+                    {% include 'visits/partials/visit_card.html' %}
+                {% empty %}
+                <div class="h-full flex flex-col items-center justify-center p-4 text-center text-slate-400">
+                    <span class="text-2xl mb-1 opacity-40">🗓️</span>
+                    <p class="text-xs font-medium">Nenhuma visita agendada</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Modal de Feedback Pós-Visita -->
+    <div x-show="feedbackModalOpen" x-cloak 
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+        <div @click.away="feedbackModalOpen = false" 
+             class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 relative animate-in fade-in zoom-in duration-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">⭐</span>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800">Registrar Feedback da Visita</h3>
+                        <p class="text-xs text-slate-500">Parecer do cliente e encaminhamento no funil</p>
+                    </div>
+                </div>
+                <button @click="feedbackModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div id="feedbackModalContent">
+                <!-- Carregado dinamicamente via HTMX -->
+                <p class="text-xs text-slate-500 text-center py-4">Carregando formulário...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Agendamento Rápido de Visita -->
+    <div x-show="scheduleModalOpen" x-cloak 
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+        <div @click.away="scheduleModalOpen = false" 
+             class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 relative animate-in fade-in zoom-in duration-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">📅</span>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800">Agendar Visita a Imóvel</h3>
+                        <p class="text-xs text-slate-500">Selecione o lead e o imóvel do catálogo</p>
+                    </div>
+                </div>
+                <button @click="scheduleModalOpen = false" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'visit_schedule_create' %}" class="space-y-3">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Lead / Cliente Interessado *</label>
+                    <select name="lead_id" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="">Selecione o Lead...</option>
+                        {% for ld in active_leads %}
+                        <option value="{{ ld.id }}">{{ ld.client.name }} — {{ ld.title|truncatechars:35 }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Imóvel do Catálogo *</label>
+                    <select name="property_id" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="">Selecione o Imóvel...</option>
+                        {% for prop in available_properties %}
+                        <option value="{{ prop.id }}">[{{ prop.code }}] {{ prop.title|truncatechars:35 }} - {{ prop.neighborhood }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Data e Hora *</label>
+                        <input type="datetime-local" name="scheduled_date" required 
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Corretor Responsável</label>
+                        <select name="agent_id" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                            {% for ag in agents %}
+                            <option value="{{ ag.id }}" {% if ag.id == request.user.id %}selected{% endif %}>
+                                {{ ag.get_full_name|default:ag.username }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Ponto de Encontro</label>
+                    <input type="text" name="meeting_point" value="No próprio imóvel" placeholder="Ex: Portaria do edifício" 
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Status Inicial da Chave</label>
+                    <select name="key_status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                        <option value="concierge">Chave na Portaria do Condomínio</option>
+                        <option value="with_owner">Proprietário Recebe no Local</option>
+                        <option value="at_agency">Chave Disponível na Imobiliária</option>
+                        <option value="with_agent">Chave Retirada pelo Corretor</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                    <button type="button" @click="scheduleModalOpen = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 rounded-lg shadow">Agendar Visita</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

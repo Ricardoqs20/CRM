@@ -1,0 +1,288 @@
+{% extends 'base.html' %}
+
+{% block title %}Funil de Vendas (Kanban) - IMOBICRM{% endblock %}
+{% block header_title %}🗂️ Funil de Vendas & Atendimento Imobiliário{% endblock %}
+
+{% block content %}
+<div class="h-full flex flex-col space-y-4" 
+     x-data="{ 
+         leadDrawerOpen: false, 
+         lostModalOpen: false, 
+         selectedLeadId: null, 
+         targetLostStageId: null,
+         quickLeadModal: false,
+         openLeadDrawer(leadId) {
+             this.selectedLeadId = leadId;
+             this.leadDrawerOpen = true;
+             htmx.ajax('GET', '/leads/' + leadId + '/drawer/', '#lead-drawer-container');
+         }
+     }">
+
+    <!-- Barra Superior de Filtros do Funil -->
+    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex-shrink-0">
+        <form id="kanban-filter-form" 
+              hx-get="{% url 'kanban' %}" 
+              hx-trigger="keyup changed delay:300ms from:input, change from:select" 
+              hx-target="#kanban-board" 
+              class="flex flex-col md:flex-row gap-3 items-center justify-between">
+            
+            <!-- Busca por texto -->
+            <div class="relative flex-1 w-full">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                <input type="text" name="q" placeholder="Buscar lead por título, cliente ou telefone..."
+                       class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none">
+            </div>
+
+            <!-- Filtros Dropdown -->
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end text-xs">
+                
+                <!-- Filtro por Corretor -->
+                <select name="agent_id" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-semibold text-slate-700">
+                    <option value="">Todos os Corretores</option>
+                    {% for ag in agents %}
+                    <option value="{{ ag.id }}" {% if current_agent == ag.id|stringformat:"s" %}selected{% endif %}>
+                        Corretor: {{ ag.get_full_name|default:ag.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+
+                <!-- Filtro por Finalidade -->
+                <select name="transaction_type" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none font-semibold text-slate-700">
+                    <option value="">Todas Finalidades</option>
+                    <option value="buy">Compra</option>
+                    <option value="rent">Locação</option>
+                </select>
+
+                <!-- Botão Novo Lead -->
+                <button type="button" @click="quickLeadModal = true" 
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    <span>Novo Lead</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Container do Quadro Kanban (Atualizado via HTMX) -->
+    <div id="kanban-board" class="flex-1 min-h-0 overflow-x-auto">
+        {% include 'kanban/partials/board.html' %}
+    </div>
+
+    <!-- Gaveta Lateral Deslizante (Slide-over da Visão 360° do Lead) -->
+    <div x-show="leadDrawerOpen" x-cloak 
+         class="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs flex justify-end">
+        <div @click.away="leadDrawerOpen = false" 
+             x-show="leadDrawerOpen"
+             x-transition:enter="transform transition ease-in-out duration-300"
+             x-transition:enter-start="translate-x-full"
+             x-transition:enter-end="translate-x-0"
+             x-transition:leave="transform transition ease-in-out duration-200"
+             x-transition:leave-start="translate-x-0"
+             x-transition:leave-end="translate-x-full"
+             class="w-full max-w-xl bg-white shadow-2xl h-full flex flex-col border-l border-slate-200"
+             id="lead-drawer-container">
+            <!-- Carregado via HTMX pelo lead_drawer.html -->
+            <div class="p-8 text-center text-slate-400">
+                <i data-lucide="loader-2" class="w-8 h-8 animate-spin mx-auto mb-2 text-emerald-600"></i>
+                <p class="text-xs">Carregando visão 360° do cliente...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Motivo de Perda Obrigatório -->
+    <div x-show="lostModalOpen" x-cloak 
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+        <div @click.away="lostModalOpen = false" class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="w-8 h-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold text-sm">❌</span>
+                <div>
+                    <h3 class="text-base font-bold text-slate-800">Motivo do Arquivamento / Perda</h3>
+                    <p class="text-xs text-slate-500">Obrigatório para alimentar as métricas de conversão</p>
+                </div>
+            </div>
+
+            <form id="lost-reason-form" @submit.prevent="submitLostReason()">
+                <div class="space-y-3 my-4">
+                    <label class="block text-xs font-semibold text-slate-700">Por que o negócio não foi fechado?</label>
+                    <select id="lost-reason-select" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none font-medium">
+                        <option value="Comprou / Alugou com Concorrente">Comprou / Alugou com Concorrente</option>
+                        <option value="Orçamento Insuficiente / Reprovou Financiamento">Orçamento Insuficiente / Reprovou Financiamento</option>
+                        <option value="Desistiu da Compra por Motivos Pessoais">Desistiu da Compra por Motivos Pessoais</option>
+                        <option value="Não encontrou o imóvel no perfil desejado">Não encontrou o imóvel no perfil desejado</option>
+                        <option value="Sem Retorno após múltiplos contatos">Sem Retorno após múltiplos contatos</option>
+                        <option value="Outro Motivo">Outro Motivo</option>
+                    </select>
+
+                    <input type="text" id="lost-reason-other" placeholder="Detalhes adicionais (opcional)..." 
+                           class="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg outline-none">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button type="button" @click="lostModalOpen = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg shadow">Confirmar Perda</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de Cadastro Rápido de Novo Lead -->
+    <div x-show="quickLeadModal" x-cloak 
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+        <div @click.away="quickLeadModal = false" class="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl border border-slate-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-sm">📥</span>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800">Novo Lead / Oportunidade</h3>
+                        <p class="text-xs text-slate-500">Cadastrar novo contato na etapa inicial do funil</p>
+                    </div>
+                </div>
+                <button @click="quickLeadModal = false" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+
+            <form action="{% url 'lead_quick_create' %}" method="POST" class="space-y-3">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Título do Interesse *</label>
+                    <input type="text" name="title" required placeholder="Ex: Busca Apartamento 3 quartos no Renascença" 
+                           class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Nome do Cliente *</label>
+                        <input type="text" name="client_name" required placeholder="Nome Completo" 
+                               class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">WhatsApp / Telefone *</label>
+                        <input type="text" name="client_phone" required placeholder="(98) 99999-9999" 
+                               class="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-lg outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Finalidade</label>
+                        <select name="transaction_type" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none">
+                            <option value="buy">Compra</option>
+                            <option value="rent">Locação</option>
+                            <option value="invest">Investimento</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Tipo de Imóvel</label>
+                        <select name="property_type" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none">
+                            <option value="apartment">Apartamento</option>
+                            <option value="house">Casa / Sobrado</option>
+                            <option value="penthouse">Cobertura</option>
+                            <option value="land">Terreno</option>
+                            <option value="commercial">Comercial</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Orçamento Previsto (R$)</label>
+                        <input type="number" step="0.01" name="budget" placeholder="Ex: 750000.00" 
+                               class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Origem do Lead</label>
+                        <select name="origin" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg outline-none">
+                            <option value="whatsapp">WhatsApp Direto</option>
+                            <option value="instagram_ads">Instagram / Meta Ads</option>
+                            <option value="portal_zap">Portal ZAP</option>
+                            <option value="portal_vivareal">VivaReal</option>
+                            <option value="portal_olx">OLX</option>
+                            <option value="site">Site</option>
+                            <option value="referral">Indicação</option>
+                            <option value="manual">Manual</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button type="button" @click="quickLeadModal = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg shadow">Cadastrar Lead</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<!-- Drag and Drop & Event Handlers -->
+<script>
+    let draggedLeadId = null;
+
+    function handleDragStart(ev, leadId) {
+        draggedLeadId = leadId;
+        ev.dataTransfer.setData("text/plain", leadId);
+        ev.dataTransfer.effectAllowed = "move";
+    }
+
+    function handleDragOver(ev) {
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = "move";
+    }
+
+    function handleDrop(ev, newStageId, stageType) {
+        ev.preventDefault();
+        const leadId = draggedLeadId || ev.dataTransfer.getData("text/plain");
+        if (!leadId) return;
+
+        // Se o estágio for 'lost', abre o modal de motivo de perda obrigatório
+        if (stageType === 'lost') {
+            const alpineData = Alpine.$data(document.querySelector('[x-data]'));
+            alpineData.selectedLeadId = leadId;
+            alpineData.targetLostStageId = newStageId;
+            alpineData.lostModalOpen = true;
+            return;
+        }
+
+        executeMoveStage(leadId, newStageId, null);
+    }
+
+    function submitLostReason() {
+        const alpineData = Alpine.$data(document.querySelector('[x-data]'));
+        const reasonSelect = document.getElementById('lost-reason-select').value;
+        const reasonOther = document.getElementById('lost-reason-other').value;
+        const fullReason = reasonOther ? `${reasonSelect} (${reasonOther})` : reasonSelect;
+
+        executeMoveStage(alpineData.selectedLeadId, alpineData.targetLostStageId, fullReason);
+        alpineData.lostModalOpen = false;
+    }
+
+    function executeMoveStage(leadId, newStageId, lostReason) {
+        const card = document.getElementById("lead-card-" + leadId);
+        const targetContainer = document.getElementById("stage-cards-" + newStageId);
+
+        if (card && targetContainer) {
+            targetContainer.prepend(card);
+        }
+
+        // Requisição para a view do Django
+        const payload = { stage_id: newStageId };
+        if (lostReason) {
+            payload.lost_reason = lostReason;
+        }
+
+        fetch(`/leads/${leadId}/move_stage/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            // Recarregar os totalizadores do funil via HTMX
+            htmx.trigger('#kanban-filter-form', 'change');
+        })
+        .catch(err => console.error('Erro ao mover lead:', err));
+    }
+</script>
+{% endblock %}

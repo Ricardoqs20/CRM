@@ -1,0 +1,89 @@
+<!-- Card de Lead Imobiliário -->
+<div id="lead-card-{{ lead.id }}" 
+     draggable="true" 
+     ondragstart="handleDragStart(event, {{ lead.id }})" 
+     class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-200 border cursor-grab active:cursor-grabbing relative group
+            {% if lead.is_followup_overdue %}border-red-400 ring-2 ring-red-400/30 bg-red-50/20{% else %}border-slate-200 hover:border-emerald-400{% endif %}">
+
+    <!-- Alerta Visual de Inatividade (>48h sem contato) -->
+    {% if lead.is_followup_overdue %}
+    <div class="mb-2.5 flex items-center justify-between bg-red-100/80 border border-red-200 text-red-700 px-2 py-1 rounded-md text-[10px] font-bold animate-pulse">
+        <span class="flex items-center gap-1">
+            <i data-lucide="alert-triangle" class="w-3 h-3 text-red-600"></i>
+            <span>Sem contato há >48h</span>
+        </span>
+        <span class="text-[9px] uppercase font-mono">Ação Urgente</span>
+    </div>
+    {% endif %}
+
+    <!-- Cabeçalho do Card: Tipo de Transação + Tipo de Imóvel -->
+    <div class="flex items-center justify-between mb-2">
+        <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md
+                     {% if lead.transaction_type == 'buy' %}bg-emerald-100 text-emerald-800
+                     {% elif lead.transaction_type == 'rent' %}bg-blue-100 text-blue-800
+                     {% else %}bg-purple-100 text-purple-800{% endif %}">
+            {{ lead.get_transaction_type_display }}
+        </span>
+
+        <span class="text-[11px] text-slate-400 font-medium flex items-center gap-1">
+            <i data-lucide="home" class="w-3 h-3"></i>
+            <span>{{ lead.get_property_type_display }}</span>
+        </span>
+    </div>
+
+    <!-- Título da Demanda (Clicável para abrir Gaveta 360°) -->
+    <h4 @click="openLeadDrawer({{ lead.id }})" 
+        class="font-bold text-slate-800 text-sm hover:text-emerald-600 transition cursor-pointer line-clamp-2 leading-snug">
+        {{ lead.title }}
+    </h4>
+
+    <!-- Dados do Cliente & Ação Rápida WhatsApp -->
+    <div class="mt-2.5 pt-2 border-t border-slate-100 space-y-1 text-xs">
+        <div class="flex items-center justify-between">
+            <span class="font-semibold text-slate-700 truncate max-w-[150px] flex items-center gap-1">
+                <i data-lucide="user" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+                <span>{{ lead.client.name }}</span>
+            </span>
+
+            <!-- Botão de WhatsApp de 1 Clique -->
+            {% if lead.clean_phone %}
+            <a href="{{ lead.whatsapp_url }}" target="_blank" 
+               @click.stop=""
+               title="Iniciar conversa no WhatsApp com {{ lead.client.name }}"
+               class="bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-200 px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 transition shadow-xs">
+                <span>WhatsApp</span>
+                <i data-lucide="message-circle" class="w-3 h-3"></i>
+            </a>
+            {% endif %}
+        </div>
+
+        {% if lead.preferred_location %}
+        <p class="text-[11px] text-slate-500 flex items-center gap-1 truncate">
+            <i data-lucide="map-pin" class="w-3 h-3 text-rose-400 flex-shrink-0"></i>
+            <span>{{ lead.preferred_location }}</span>
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Rodapé: Valor do Orçamento + Origem + Corretor -->
+    <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+        <div>
+            <span class="text-[10px] text-slate-400 block leading-none">Orçamento / VGV</span>
+            <span class="text-xs font-black text-slate-900">R$ {{ lead.budget|floatformat:2 }}</span>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+            <!-- Badge de Origem -->
+            <span class="text-[9px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                {{ lead.get_origin_display }}
+            </span>
+
+            <!-- Avatar do Corretor -->
+            <div class="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center text-[10px] font-bold" 
+                 title="Corretor: {{ lead.agent.get_full_name|default:lead.agent.username|default:'Não atribuído' }}">
+                {% if lead.agent.first_name %}{{ lead.agent.first_name|slice:":1" }}{% else %}A{% endif %}
+            </div>
+        </div>
+    </div>
+
+</div>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>CRM Imobiliário - Funil Kanban</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 font-sans text-gray-800">
+
+    <!-- Header -->
+    <header class="bg-indigo-900 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold">🏠 CRM Imobiliário - Funil de Vendas</h1>
+        <a href="/admin/" class="text-sm bg-indigo-700 hover:bg-indigo-600 px-3 py-1 rounded">Painel Admin</a>
+    </header>
+
+    <!-- Main Board -->
+    <main class="p-6">
+        <h2 class="text-2xl font-semibold mb-4 text-gray-700">{{ pipeline.name|default:"Funil de Atendimento Imobiliário" }}</h2>
+        
+        <div class="flex gap-4 overflow-x-auto pb-4">
+            {% for stage in stages %}
+            <!-- Coluna do Kanban -->
+            <div class="bg-slate-200 w-80 rounded-lg p-3 flex-shrink-0 min-h-[500px]" 
+                 ondragover="allowDrop(event)" 
+                 ondrop="drop(event, {{ stage.id }})">
+                
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="font-bold text-gray-700">{{ stage.name }}</h3>
+                    <span class="bg-slate-300 text-xs px-2 py-0.5 rounded-full font-bold text-gray-600">
+                        {{ stage.leads.count }}
+                    </span>
+                </div>
+
+                <!-- Lista de Cards -->
+                <div class="space-y-3" id="stage-{{ stage.id }}">
+                    {% for lead in stage.leads.all %}
+                    <!-- Card de Imóvel -->
+                    <div id="lead-{{ lead.id }}" 
+                         draggable="true" 
+                         ondragstart="drag(event, {{ lead.id }})" 
+                         class="bg-white p-4 rounded-md shadow cursor-move border-l-4 
+                                {% if lead.transaction_type == 'buy' %}border-emerald-500{% else %}border-amber-500{% endif %}">
+                        
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded 
+                                         {% if lead.transaction_type == 'buy' %}bg-emerald-100 text-emerald-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+                                {{ lead.get_transaction_type_display }}
+                            </span>
+                            <span class="text-xs text-gray-400">{{ lead.get_property_type_display }}</span>
+                        </div>
+
+                        <h4 class="font-bold text-gray-800 text-sm mt-1">{{ lead.title }}</h4>
+                        
+                        <p class="text-xs text-gray-600 mt-2">👤 <strong>Cliente:</strong> {{ lead.client.name }}</p>
+                        <p class="text-xs text-gray-600">📞 {{ lead.client.phone }}</p>
+                        {% if lead.preferred_location %}
+                        <p class="text-xs text-gray-500 mt-1">📍 {{ lead.preferred_location }}</p>
+                        {% endif %}
+
+                        <div class="mt-3 pt-2 border-t flex justify-between items-center">
+                            <span class="text-sm font-extrabold text-indigo-900">R$ {{ lead.budget }}</span>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <p class="text-xs text-gray-400 text-center py-4 italic">Nenhum imóvel neste estágio</p>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </main>
+
+    <!-- Drag and Drop JS -->
+    <script>
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+
+        function drag(ev, leadId) {
+            ev.dataTransfer.setData("leadId", leadId);
+        }
+
+        function drop(ev, newStageId) {
+            ev.preventDefault();
+            const leadId = ev.dataTransfer.getData("leadId");
+            const card = document.getElementById("lead-" + leadId);
+
+            // Mover o card visualmente
+            const targetContainer = document.getElementById("stage-" + newStageId);
+            targetContainer.appendChild(card);
+
+            // Enviar requisição para a API do Django para atualizar no Banco de Dados
+            fetch(`/api/leads/${leadId}/move_stage/`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ stage_id: newStageId })
+            })
+            .then(response => response.json())
+            .then(data => console.log('Estágio atualizado:', data))
+            .catch(error => console.error('Erro ao mover lead:', error));
+        }
+    </script>
+</body>
+</html>

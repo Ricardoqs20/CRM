@@ -1,0 +1,60 @@
+<div id="task-item-{{ task.id }}" 
+     class="flex items-start gap-3 p-3 bg-white rounded-xl border {% if task.is_completed %}border-slate-100 bg-slate-50/50 opacity-60{% elif task.is_overdue %}border-red-300 bg-red-50/30{% elif task.is_today %}border-amber-300 bg-amber-50/30{% else %}border-slate-200{% endif %} shadow-sm transition hover:shadow-md text-xs">
+
+    <!-- Checkbox de Conclusão via HTMX -->
+    <div class="pt-0.5">
+        <input type="checkbox" 
+               {% if task.is_completed %}checked{% endif %}
+               hx-post="{% url 'task_toggle_complete' task.id %}"
+               hx-target="#task-item-{{ task.id }}"
+               hx-swap="outerHTML"
+               class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer">
+    </div>
+
+    <!-- Conteúdo da Tarefa -->
+    <div class="flex-1 min-w-0 space-y-1">
+        <div class="flex items-center justify-between gap-2">
+            <span class="font-bold {% if task.is_completed %}line-through text-slate-400{% else %}text-slate-800{% endif %} flex items-center gap-1.5 truncate">
+                <span>{{ task.task_icon }}</span>
+                <span>{{ task.title }}</span>
+            </span>
+
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap
+                         {% if task.priority == 'high' %}bg-red-100 text-red-700
+                         {% elif task.priority == 'medium' %}bg-amber-100 text-amber-800
+                         {% else %}bg-slate-100 text-slate-600{% endif %}">
+                {{ task.get_priority_display }}
+            </span>
+        </div>
+
+        {% if task.description %}
+        <p class="text-[11px] text-slate-600 truncate {% if task.is_completed %}line-through text-slate-400{% endif %}">
+            {{ task.description }}
+        </p>
+        {% endif %}
+
+        <!-- Metadados: Lead, Corretor e Horário -->
+        <div class="flex flex-wrap items-center gap-3 pt-1 text-[10px] text-slate-500">
+            {% if task.lead %}
+            <span class="flex items-center gap-1 font-semibold text-slate-700">
+                <i data-lucide="user" class="w-3 h-3 text-blue-500"></i>
+                {{ task.lead.client.name }} ({{ task.lead.title|truncatechars:20 }})
+            </span>
+            {% endif %}
+
+            {% if task.related_property %}
+            <span class="flex items-center gap-1 text-slate-600">
+                <i data-lucide="building" class="w-3 h-3 text-teal-500"></i>
+                [{{ task.related_property.code }}] {{ task.related_property.neighborhood }}
+            </span>
+            {% endif %}
+
+            <span class="flex items-center gap-1 {% if task.is_overdue %}text-red-600 font-extrabold{% elif task.is_today %}text-amber-700 font-bold{% else %}text-slate-500{% endif %} ml-auto">
+                <i data-lucide="clock" class="w-3 h-3"></i>
+                {{ task.due_date|date:"d/m/Y H:i" }}
+                {% if task.is_overdue %}(Atrasada){% elif task.is_today %}(Hoje){% endif %}
+            </span>
+        </div>
+    </div>
+
+</div>

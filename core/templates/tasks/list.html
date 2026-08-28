@@ -1,0 +1,282 @@
+{% extends 'base.html' %}
+
+{% block title %}Minhas Tarefas & Follow-ups - CRM Imobiliário{% endblock %}
+
+{% block header_title %}
+<span class="flex items-center gap-2">
+    <span class="p-2 rounded-xl bg-amber-100 text-amber-700 text-lg">⏰</span>
+    <span>Minhas Tarefas & Follow-ups do Dia</span>
+</span>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-6xl mx-auto" x-data="{ newTaskModal: false }">
+
+    <!-- KPI / Resumo de Tarefas -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Tarefas para Hoje</p>
+                <h3 class="text-2xl font-black text-amber-600 mt-1">{{ today_tasks_count }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xl">
+                ⚡
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border {% if overdue_tasks_count > 0 %}border-red-300 bg-red-50/40{% else %}border-slate-200{% endif %} shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase {% if overdue_tasks_count > 0 %}text-red-700 font-bold{% else %}text-slate-500{% endif %} tracking-wider">Atrasadas</p>
+                <h3 class="text-2xl font-black {% if overdue_tasks_count > 0 %}text-red-600 animate-pulse{% else %}text-slate-700{% endif %} mt-1">
+                    {{ overdue_tasks_count }}
+                </h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl {% if overdue_tasks_count > 0 %}bg-red-100 text-red-600{% else %}bg-slate-100 text-slate-500{% endif %} flex items-center justify-center font-bold text-xl">
+                🚨
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Próximos 7 Dias</p>
+                <h3 class="text-2xl font-black text-blue-600 mt-1">{{ upcoming_tasks_count }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xl">
+                📅
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Concluídas Hoje</p>
+                <h3 class="text-2xl font-black text-emerald-600 mt-1">{{ completed_today_count }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xl">
+                ✅
+            </div>
+        </div>
+    </div>
+
+    <!-- Barra de Filtros e Criação de Tarefa -->
+    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <!-- Filtros -->
+        <form method="GET" class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <select name="category" onchange="this.form.submit()" 
+                    class="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="">Todas as Categorias</option>
+                <option value="call" {% if selected_category == 'call' %}selected{% endif %}>📞 Ligações</option>
+                <option value="visit_followup" {% if selected_category == 'visit_followup' %}selected{% endif %}>🏠 Follow-up de Visita</option>
+                <option value="document" {% if selected_category == 'document' %}selected{% endif %}>📄 Documentações</option>
+                <option value="credit_analysis" {% if selected_category == 'credit_analysis' %}selected{% endif %}>🏦 Análise de Crédito</option>
+                <option value="proposal" {% if selected_category == 'proposal' %}selected{% endif %}>📝 Propostas</option>
+                <option value="general" {% if selected_category == 'general' %}selected{% endif %}>📋 Outras</option>
+            </select>
+
+            <select name="agent" onchange="this.form.submit()" 
+                    class="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500">
+                <option value="">Todos os Responsáveis</option>
+                {% for ag in agents %}
+                <option value="{{ ag.id }}" {% if selected_agent == ag.id|stringformat:"i" %}selected{% endif %}>
+                    {{ ag.get_full_name|default:ag.username }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <!-- Botão Nova Tarefa -->
+        <button @click="newTaskModal = true"
+                class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-600/20 transition whitespace-nowrap">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            <span>Nova Tarefa / Lembrete</span>
+        </button>
+    </div>
+
+    <!-- 3 Blocos Principais de Tarefas -->
+    <div class="space-y-6">
+
+        <!-- Bloco 1: Atrasadas (se houver) -->
+        {% if overdue_tasks %}
+        <div class="bg-red-50/60 border border-red-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-red-800">
+                    <span class="text-xl">🚨</span>
+                    <h3 class="text-sm font-extrabold uppercase tracking-wide">Tarefas em Atraso (Urgente)</h3>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-red-200 text-red-900">
+                    {{ overdue_tasks|length }}
+                </span>
+            </div>
+            <div class="space-y-2">
+                {% for task in overdue_tasks %}
+                    {% include 'tasks/partials/task_item.html' %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Bloco 2: Tarefas de Hoje -->
+        <div class="bg-white border border-amber-200 ring-2 ring-amber-50 rounded-2xl p-5 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-amber-800">
+                    <span class="text-xl">⚡</span>
+                    <h3 class="text-sm font-extrabold uppercase tracking-wide">Fila de Hoje ({{ today|date:"d/m/Y" }})</h3>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900">
+                    {{ today_tasks|length }}
+                </span>
+            </div>
+            <div class="space-y-2">
+                {% for task in today_tasks %}
+                    {% include 'tasks/partials/task_item.html' %}
+                {% empty %}
+                <div class="text-center py-6 text-slate-400">
+                    <span class="text-3xl block mb-1">🎉</span>
+                    <p class="text-xs font-semibold text-slate-500">Parabéns! Nenhuma tarefa pendente para hoje.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Bloco 3: Próximos 7 Dias -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-slate-800">
+                    <span class="text-xl">📅</span>
+                    <h3 class="text-sm font-extrabold uppercase tracking-wide">Programadas para os Próximos 7 Dias</h3>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-slate-100 text-slate-700">
+                    {{ upcoming_tasks|length }}
+                </span>
+            </div>
+            <div class="space-y-2">
+                {% for task in upcoming_tasks %}
+                    {% include 'tasks/partials/task_item.html' %}
+                {% empty %}
+                <div class="text-center py-4 text-slate-400 text-xs">
+                    Nenhuma tarefa programada para os próximos 7 dias.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Bloco 4: Concluídas Recentemente (Colapsável) -->
+        {% if completed_tasks %}
+        <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm" x-data="{ showCompleted: false }">
+            <button @click="showCompleted = !showCompleted" class="w-full flex items-center justify-between text-xs font-bold text-slate-600 hover:text-slate-900">
+                <span class="flex items-center gap-2">
+                    <span>✅</span> Tarefas Concluídas Recentemente ({{ completed_tasks|length }})
+                </span>
+                <i data-lucide="chevron-down" :class="showCompleted ? 'rotate-180' : ''" class="w-4 h-4 transition-transform"></i>
+            </button>
+            <div x-show="showCompleted" class="mt-3 space-y-2 pt-2 border-t border-slate-200" x-cloak>
+                {% for task in completed_tasks %}
+                    {% include 'tasks/partials/task_item.html' %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- Modal Nova Tarefa -->
+    <div x-show="newTaskModal" x-cloak 
+         class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+        <div @click.away="newTaskModal = false" 
+             class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 relative animate-in fade-in zoom-in duration-200">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-sm">⏰</span>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800">Nova Tarefa / Lembrete</h3>
+                        <p class="text-xs text-slate-500">Agende ligações, follow-ups ou envio de documentos</p>
+                    </div>
+                </div>
+                <button @click="newTaskModal = false" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'task_create' %}" class="space-y-3">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Título da Tarefa *</label>
+                    <input type="text" name="title" required placeholder="Ex: Ligar para confirmar análise de crédito da Caixa" 
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Categoria *</label>
+                        <select name="task_type" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                            <option value="call">📞 Ligação Telefônica</option>
+                            <option value="visit_followup">🏠 Follow-up de Visita</option>
+                            <option value="credit_analysis">🏦 Análise de Crédito</option>
+                            <option value="document">📄 Documentação / Certidões</option>
+                            <option value="proposal">📝 Elaborar Proposta</option>
+                            <option value="general">📋 Tarefa Geral</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Prioridade *</label>
+                        <select name="priority" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                            <option value="medium">Média</option>
+                            <option value="high">Alta / Urgente</option>
+                            <option value="low">Baixa</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Data e Hora Limite *</label>
+                        <input type="datetime-local" name="due_date" required 
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Responsável</label>
+                        <select name="assigned_to" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                            {% for ag in agents %}
+                            <option value="{{ ag.id }}" {% if ag.id == request.user.id %}selected{% endif %}>
+                                {{ ag.get_full_name|default:ag.username }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Vincular a um Lead (Opcional)</label>
+                    <select name="lead_id" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                        <option value="">Nenhum lead vinculado</option>
+                        {% for ld in active_leads %}
+                        <option value="{{ ld.id }}">{{ ld.client.name }} — {{ ld.title|truncatechars:35 }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Vincular a um Imóvel (Opcional)</label>
+                    <select name="property_id" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500">
+                        <option value="">Nenhum imóvel vinculado</option>
+                        {% for prop in available_properties %}
+                        <option value="{{ prop.id }}">[{{ prop.code }}] {{ prop.title|truncatechars:35 }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Detalhes / Instruções</label>
+                    <textarea name="description" rows="2" placeholder="Observações adicionais para a tarefa..."
+                              class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                    <button type="button" @click="newTaskModal = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-lg shadow">Criar Tarefa</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
