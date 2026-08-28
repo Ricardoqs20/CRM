@@ -131,3 +131,11 @@ GOOGLE_CLIENT_ID = ''
 GOOGLE_CLIENT_SECRET = ''
 # OBRIGATÓRIO usar 127.0.0.1 (não use 192.168.x.x — Google bloqueia IP privado)
 GOOGLE_REDIRECT_URI = 'http://127.0.0.1:8000/login/google/callback/'
+
+
+# Em desenvolvimento, aceita CSRF de qualquer host da LAN (celular na mesma Wi‑Fi)
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS = list(set(CSRF_TRUSTED_ORIGINS + [
+        'http://192.168.0.10:8000',
+        'http://192.168.1.10:8000',
+    ]))
