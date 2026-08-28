@@ -120,6 +120,13 @@ CSRF_COOKIE_SECURE = False
 SESSION_COOKIE_SECURE = False
 
 # Login
-LOGIN_URL = '/admin/login/'
+LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
-LOGOUT_REDIRECT_URL = '/admin/login/'
+LOGOUT_REDIRECT_URL = '/login/'
+
+
+# Google OAuth (opcional — preencha para habilitar "Entrar com Google")
+# Crie em: https://console.cloud.google.com/apis/credentials
+# Authorized redirect URI: http://127.0.0.1:8000/login/google/callback/
+GOOGLE_CLIENT_ID = ''
+GOOGLE_CLIENT_SECRET = ''

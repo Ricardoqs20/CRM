@@ -17,7 +17,8 @@ from core.views import (
     lead_webhook_ingest_view, portal_xml_feed_view,
     whatsapp_template_list_view, whatsapp_template_save_view,
     whatsapp_template_delete_view, lead_template_message_view,
-    contact_list_view, contact_create_view, contact_edit_view, contact_detail_view
+    contact_list_view, contact_create_view, contact_edit_view, contact_detail_view,
+    crm_login_view, crm_logout_view, google_login_start, google_login_callback
 )
 
 router = DefaultRouter()
@@ -27,6 +28,12 @@ router.register(r'leads', PropertyLeadViewSet)
 router.register(r'properties', PropertyViewSet)
 
 urlpatterns = [
+    # Autenticação frontend
+    path('login/', crm_login_view, name='crm_login'),
+    path('logout/', crm_logout_view, name='crm_logout'),
+    path('login/google/', google_login_start, name='google_login'),
+    path('login/google/callback/', google_login_callback, name='google_callback'),
+
     # Dashboard BI & Indicadores
     path('dashboard/', dashboard_view, name='dashboard'),
 

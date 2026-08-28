@@ -27,6 +27,7 @@ from .services.match_engine import (
 )
 from .services.lead_router import assign_lead_smart
 from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, login, logout
 
 # ==========================================
 # REST API VIEWSETS (DRF)
@@ -1490,8 +1491,19 @@ def lead_template_message_view(request, lead_id, template_id):
 # ==========================================
 
 def contact_list_view(request):
-    """Listagem de contatos / clientes com busca e filtros"""
+    """Listagem de contatos / clientes com busca e filtros — vinculados à conta"""
     qs = Person.objects.select_related('assigned_agent').all()
+
+    # Contatos vinculados à conta logada (corretor vê só os seus; gestor/admin vê todos)
+    if request.user.is_authenticated:
+        is_mgr = (
+            request.user.is_superuser
+            or (hasattr(request.user, 'profile') and UserProfile.objects.filter(user=request.user, role='manager').exists())
+        )
+        if not is_mgr:
+            qs = qs.filter(assigned_agent=request.user)
+    else:
+        return redirect('crm_login')
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -1541,10 +1553,17 @@ def contact_create_view(request):
             return redirect('contact_create')
 
         agent = None
-        if agent_id:
+        if request.user.is_authenticated:
+            is_mgr = (
+                request.user.is_superuser
+                or (hasattr(request.user, 'profile') and UserProfile.objects.filter(user=request.user, role='manager').exists())
+            )
+            if is_mgr and agent_id:
+                agent = User.objects.filter(pk=agent_id).first()
+            else:
+                agent = request.user  # contatos sempre vinculados à conta logada
+        elif agent_id:
             agent = User.objects.filter(pk=agent_id).first()
-        elif request.user.is_authenticated:
-            agent = request.user
 
         person = Person.objects.create(
             name=name,
@@ -1608,3 +1627,187 @@ def contact_detail_view(request, pk):
         'leads': person.leads.select_related('stage', 'pipeline').all()[:20],
         'owned': person.owned_properties.all()[:20],
     })
+
+
+
+# ==========================================
+# AUTENTICAÇÃO (Frontend)
+# ==========================================
+
+def crm_login_view(request):
+    """Login por e-mail/usuário + senha (frontend CRM)"""
+    if request.user.is_authenticated:
+        return redirect(request.GET.get('next') or 'kanban')
+
+    error = None
+    if request.method == 'POST':
+        login_id = request.POST.get('email', '').strip()
+        password = request.POST.get('password', '')
+        user = None
+        if login_id and password:
+            # tenta username direto
+            user = authenticate(request, username=login_id, password=password)
+            if user is None and '@' in login_id:
+                # tenta por e-mail
+                u = User.objects.filter(email__iexact=login_id).first()
+                if u:
+                    user = authenticate(request, username=u.username, password=password)
+            if user is not None:
+                login(request, user)
+                # garante perfil
+                if not hasattr(user, 'profile') or not UserProfile.objects.filter(user=user).exists():
+                    UserProfile.objects.get_or_create(user=user, defaults={'role': 'agent'})
+                next_url = request.POST.get('next') or request.GET.get('next') or '/'
+                return redirect(next_url)
+            error = 'E-mail/usuário ou senha incorretos.'
+        else:
+            error = 'Preencha e-mail e senha.'
+
+    return render(request, 'auth/login.html', {
+        'error': error,
+        'next': request.GET.get('next', ''),
+        'google_enabled': bool(getattr(settings, 'GOOGLE_CLIENT_ID', '')),
+    })
+
+
+def crm_logout_view(request):
+    logout(request)
+    messages.success(request, 'Você saiu da conta.')
+    return redirect('crm_login')
+
+
+def google_login_start(request):
+    """Inicia OAuth Google"""
+    client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
+    if not client_id:
+        messages.error(request, 'Login com Google não configurado. Defina GOOGLE_CLIENT_ID no settings.')
+        return redirect('crm_login')
+
+    import urllib.parse, secrets
+    state = secrets.token_urlsafe(16)
+    request.session['google_oauth_state'] = state
+    request.session['google_oauth_next'] = request.GET.get('next', '/')
+
+    redirect_uri = request.build_absolute_uri('/login/google/callback/')
+    params = {
+        'client_id': client_id,
+        'redirect_uri': redirect_uri,
+        'response_type': 'code',
+        'scope': 'openid email profile',
+        'state': state,
+        'access_type': 'online',
+        'prompt': 'select_account',
+    }
+    url = 'https://accounts.google.com/o/oauth2/v2/auth?' + urllib.parse.urlencode(params)
+    return redirect(url)
+
+
+def google_login_callback(request):
+    """Callback OAuth Google — cria/associa usuário e vincula sessão"""
+    import urllib.parse, urllib.request, json
+
+    client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
+    client_secret = getattr(settings, 'GOOGLE_CLIENT_SECRET', '')
+    if not client_id or not client_secret:
+        messages.error(request, 'Google OAuth incompleto (CLIENT_ID/SECRET).')
+        return redirect('crm_login')
+
+    err = request.GET.get('error')
+    if err:
+        messages.error(request, f'Google recusou o login: {err}')
+        return redirect('crm_login')
+
+    state = request.GET.get('state', '')
+    if state != request.session.get('google_oauth_state'):
+        messages.error(request, 'Estado OAuth inválido. Tente novamente.')
+        return redirect('crm_login')
+
+    code = request.GET.get('code')
+    if not code:
+        messages.error(request, 'Código Google ausente.')
+        return redirect('crm_login')
+
+    redirect_uri = request.build_absolute_uri('/login/google/callback/')
+    token_data = urllib.parse.urlencode({
+        'code': code,
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'redirect_uri': redirect_uri,
+        'grant_type': 'authorization_code',
+    }).encode()
+
+    try:
+        req = urllib.request.Request(
+            'https://oauth2.googleapis.com/token',
+            data=token_data,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            tokens = json.loads(resp.read().decode())
+        access_token = tokens.get('access_token')
+        if not access_token:
+            raise ValueError('Sem access_token')
+
+        req2 = urllib.request.Request(
+            'https://www.googleapis.com/oauth2/v2/userinfo',
+            headers={'Authorization': f'Bearer {access_token}'},
+        )
+        with urllib.request.urlopen(req2, timeout=15) as resp2:
+            info = json.loads(resp2.read().decode())
+    except Exception as e:
+        messages.error(request, f'Falha ao autenticar com Google: {e}')
+        return redirect('crm_login')
+
+    email = (info.get('email') or '').lower().strip()
+    if not email:
+        messages.error(request, 'Google não retornou e-mail.')
+        return redirect('crm_login')
+
+    given = info.get('given_name') or ''
+    family = info.get('family_name') or ''
+    picture = info.get('picture') or ''
+
+    user = User.objects.filter(email__iexact=email).first()
+    if user is None:
+        base_username = email.split('@')[0][:30]
+        username = base_username
+        i = 1
+        while User.objects.filter(username=username).exists():
+            username = f'{base_username}{i}'
+            i += 1
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            first_name=given,
+            last_name=family,
+        )
+        user.set_unusable_password()
+        user.is_staff = True  # acesso ao CRM frontend; permissões via grupo
+        user.save()
+        # grupo Corretores
+        from django.contrib.auth.models import Group, Permission
+        group, _ = Group.objects.get_or_create(name='Corretores')
+        if group.permissions.count() == 0:
+            for name in ['person', 'company', 'clientpreference', 'property', 'propertyimage',
+                         'propertylead', 'pipeline', 'stage', 'activity', 'interactionlog',
+                         'propertyvisit', 'whatsapptemplate']:
+                for action in ('add', 'change', 'view', 'delete'):
+                    try:
+                        group.permissions.add(Permission.objects.get(codename=f'{action}_{name}'))
+                    except Permission.DoesNotExist:
+                        pass
+        user.groups.add(group)
+    else:
+        # atualiza nome se vazio
+        if given and not user.first_name:
+            user.first_name = given
+            user.last_name = family or user.last_name
+            user.save(update_fields=['first_name', 'last_name'])
+
+    UserProfile.objects.get_or_create(user=user, defaults={'role': 'agent'})
+    login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+
+    next_url = request.session.pop('google_oauth_next', '/')
+    request.session.pop('google_oauth_state', None)
+    messages.success(request, f'Bem-vindo, {user.get_full_name() or user.email}!')
+    return redirect(next_url or '/')

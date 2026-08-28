@@ -236,23 +236,50 @@
             </div>
         </nav>
 
-        <!-- Perfil -->
-        <div class="p-2.5 border-t border-slate-200 bg-slate-50 flex items-center gap-2.5 safe-bottom">
-            <div class="w-8 h-8 rounded-full bg-primary-800 text-white flex items-center justify-center font-semibold text-xs flex-shrink-0">
-                {% if request.user.first_name %}{{ request.user.first_name|slice:":1" }}{% else %}U{% endif %}
+        <!-- Perfil / Login -->
+        <div class="p-2.5 border-t border-slate-200 bg-slate-50 safe-bottom" x-data="{ menuOpen: false }">
+            {% if request.user.is_authenticated %}
+            <div class="relative">
+                <button type="button" @click="menuOpen = !menuOpen"
+                        class="w-full flex items-center gap-2.5 rounded-md p-1 hover:bg-slate-100 transition text-left">
+                    <div class="w-8 h-8 rounded-full bg-primary-800 text-white flex items-center justify-center font-semibold text-xs flex-shrink-0">
+                        {% if request.user.first_name %}{{ request.user.first_name|slice:":1" }}{% else %}{{ request.user.username|slice:":1"|upper }}{% endif %}
+                    </div>
+                    <div x-show="isDesktop ? sidebarOpen : true" class="flex-1 min-w-0">
+                        <p class="text-xs font-medium text-slate-800 truncate">
+                            {{ request.user.get_full_name|default:request.user.username }}
+                        </p>
+                        <p class="text-[10px] text-slate-500 truncate">
+                            {% if request.user.is_superuser %}Admin{% else %}Corretor{% endif %}
+                            · {{ request.user.email|default:request.user.username }}
+                        </p>
+                    </div>
+                    <i data-lucide="chevron-up" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" x-show="isDesktop ? sidebarOpen : true"></i>
+                </button>
+                <div x-show="menuOpen" @click.away="menuOpen = false" x-cloak
+                     class="absolute bottom-full left-0 right-0 mb-1 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-50 text-sm">
+                    <a href="{% url 'contact_list' %}" @click="menuOpen=false; closeMobile()"
+                       class="flex items-center gap-2 px-3 py-2 text-slate-700 hover:bg-slate-50">
+                        <i data-lucide="users" class="w-4 h-4 text-slate-400"></i> Meus contatos
+                    </a>
+                    <a href="{% url 'crm_logout' %}"
+                       class="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50">
+                        <i data-lucide="log-out" class="w-4 h-4"></i> Sair
+                    </a>
+                </div>
             </div>
-            <div x-show="isDesktop ? sidebarOpen : true" class="flex-1 min-w-0">
-                <p class="text-xs font-medium text-slate-800 truncate">
-                    {{ request.user.get_full_name|default:request.user.username }}
-                </p>
-                <p class="text-[10px] text-slate-500 truncate">
-                    {% if request.user.is_authenticated %}
-                        {% if request.user.is_superuser or request.user.is_staff %}Admin
-                        {% elif request.user.profile and request.user.profile.is_manager %}Gestor
-                        {% else %}Corretor{% endif %}
-                    {% else %}Visitante{% endif %}
+            {% else %}
+            <div class="space-y-1.5">
+                <a href="{% url 'crm_login' %}"
+                   class="flex items-center justify-center gap-2 w-full bg-primary-900 hover:bg-primary-800 text-white text-xs font-medium py-2 px-3 rounded-md transition">
+                    <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+                    <span x-show="isDesktop ? sidebarOpen : true">Entrar na conta</span>
+                </a>
+                <p x-show="isDesktop ? sidebarOpen : true" class="text-[10px] text-center text-slate-400">
+                    E-mail ou Google
                 </p>
             </div>
+            {% endif %}
         </div>
     </aside>
 
