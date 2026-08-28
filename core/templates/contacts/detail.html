@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ contact.name }} - ImobiCRM{% endblock %}
+{% block header_title %}Ficha do Contato{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-4">
+
+  <!-- Cabeçalho do contato -->
+  <div class="bg-white border border-slate-200 rounded-lg shadow-sm p-5">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div class="flex items-start gap-3">
+        <div class="w-12 h-12 rounded-full bg-primary-900 text-white flex items-center justify-center font-semibold text-lg flex-shrink-0">
+          {{ contact.name|slice:":1"|upper }}
+        </div>
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800">{{ contact.name }}</h2>
+          <span class="inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full mt-1
+            {% if contact.client_type == 'buyer' %}bg-blue-50 text-blue-700
+            {% elif contact.client_type == 'owner' %}bg-amber-50 text-amber-700
+            {% elif contact.client_type == 'renter' %}bg-violet-50 text-violet-700
+            {% elif contact.client_type == 'investor' %}bg-emerald-50 text-emerald-700
+            {% else %}bg-slate-100 text-slate-600{% endif %}">
+            {{ contact.get_client_type_display }}
+          </span>
+          {% if contact.assigned_agent %}
+          <p class="text-xs text-slate-500 mt-1.5">
+            Corretor: <span class="font-medium text-slate-700">{{ contact.assigned_agent.get_full_name|default:contact.assigned_agent.username }}</span>
+          </p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="https://wa.me/55{{ contact.phone|cut:' '|cut:'-'|cut:'('|cut:')' }}" target="_blank"
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 hover:bg-green-700 text-white">
+          <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> WhatsApp
+        </a>
+        <a href="{% url 'contact_edit' contact.pk %}"
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50">
+          <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar
+        </a>
+        <a href="{% url 'contact_list' %}" class="inline-flex items-center px-3 py-1.5 text-xs text-slate-500 hover:text-slate-800">
+          ← Lista
+        </a>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5 pt-4 border-t border-slate-100 text-sm">
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-slate-400 font-medium">Telefone</p>
+        <p class="text-slate-800 mt-0.5">{{ contact.phone }}</p>
+        {% if contact.secondary_phone %}<p class="text-slate-500 text-xs">{{ contact.secondary_phone }}</p>{% endif %}
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-slate-400 font-medium">E-mail</p>
+        <p class="text-slate-800 mt-0.5">{{ contact.email|default:"—" }}</p>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-slate-400 font-medium">Documento</p>
+        <p class="text-slate-800 mt-0.5">{{ contact.document|default:"—" }}</p>
+      </div>
+    </div>
+
+    {% if contact.notes %}
+    <div class="mt-4 pt-4 border-t border-slate-100">
+      <p class="text-[11px] uppercase tracking-wide text-slate-400 font-medium mb-1">Observações</p>
+      <p class="text-sm text-slate-700 whitespace-pre-line">{{ contact.notes }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- Leads -->
+    <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
+      <div class="px-4 py-3 border-b border-slate-100">
+        <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wide">Leads vinculados</h3>
+      </div>
+      <div class="p-4">
+        {% if leads %}
+        <ul class="space-y-2">
+          {% for lead in leads %}
+          <li class="text-sm flex items-center justify-between gap-2">
+            <span class="text-slate-700 truncate">#{{ lead.id }} — {{ lead.stage.name|default:"Sem estágio" }}</span>
+            <span class="text-[11px] text-slate-400">{{ lead.created_at|date:"d/m/Y" }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-xs text-slate-500">Nenhum lead vinculado.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Imóveis de propriedade -->
+    <div class="bg-white border border-slate-200 rounded-lg shadow-sm">
+      <div class="px-4 py-3 border-b border-slate-100">
+        <h3 class="text-xs font-semibold text-slate-700 uppercase tracking-wide">Imóveis (proprietário)</h3>
+      </div>
+      <div class="p-4">
+        {% if owned %}
+        <ul class="space-y-2">
+          {% for prop in owned %}
+          <li class="text-sm">
+            <a href="{% url 'property_detail' prop.pk %}" class="text-primary-800 hover:underline font-medium">{{ prop.code }}</a>
+            <span class="text-slate-500"> — {{ prop.title|truncatechars:40 }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-xs text-slate-500">Nenhum imóvel como proprietário.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
