@@ -26,30 +26,48 @@ class Command(BaseCommand):
             defaults={'is_default': False, 'is_active': True}
         )
 
-        # 2. Criar Etapas Típicas do Funil Imobiliário (baseado no documento)
+        # 2. Etapas do Funil Imobiliário (padrão operacional)
+        # order, name, type, color, descrição (só documentação no seed)
         stages_data = [
-            (1, '1. Novo Lead', 'open', '#3b82f6'),
-            (2, '2. Em Atendimento', 'open', '#f59e0b'),
-            (3, '3. Visita Agendada', 'open', '#8b5cf6'),
-            (4, '4. Proposta / Negociação', 'open', '#ec4899'),
-            (5, '5. Fechado (Ganho)', 'won', '#10b981'),
-            (6, '6. Perdido (Arquivado)', 'lost', '#6b7280'),
+            (1, 'Novo Lead', 'open', '#2563eb'),           # Qualifica contato e orçamento
+            (2, 'Em Atendimento', 'open', '#d97706'),      # Apresenta imóveis e tira dúvidas
+            (3, 'Visita Agendada', 'open', '#7c3aed'),    # Agenda visita e controla chaves
+            (4, 'Proposta / Negociação', 'open', '#db2777'),  # Proposta, valores e docs
+            (5, 'Fechado (Ganho)', 'won', '#059669'),      # Contrato e comissão
+            (6, 'Perdido (Arquivado)', 'lost', '#64748b'), # Histórico para reabordagem
         ]
 
-        stage_objects = {}
-        for order, name, s_type, color in stages_data:
-            stage, _ = Stage.objects.get_or_create(
-                pipeline=pipeline_sales,
-                name=name,
-                defaults={'order': order, 'stage_type': s_type, 'color': color}
-            )
-            stage.order = order
-            stage.stage_type = s_type
-            stage.color = color
-            stage.save()
-            stage_objects[order] = stage
+        def sync_stages(pipeline):
+            # Remove etapas antigas com nomes numerados legados
+            legacy_names = [
+                '1. Novo Lead', '2. Em Atendimento', '3. Visita Agendada',
+                '4. Proposta / Negociação', '5. Fechado (Ganho)', '6. Perdido (Arquivado)',
+            ]
+            Stage.objects.filter(pipeline=pipeline, name__in=legacy_names).delete()
 
-        self.stdout.write(self.style.SUCCESS(f'Funil "{pipeline_sales.name}" e etapas configuradas.'))
+            objs = {}
+            for order, name, s_type, color in stages_data:
+                stage, _ = Stage.objects.get_or_create(
+                    pipeline=pipeline,
+                    order=order,
+                    defaults={'name': name, 'stage_type': s_type, 'color': color}
+                )
+                stage.name = name
+                stage.stage_type = s_type
+                stage.color = color
+                stage.order = order
+                stage.save()
+                objs[order] = stage
+            # limpa etapas extras fora das 6
+            Stage.objects.filter(pipeline=pipeline).exclude(order__in=[1, 2, 3, 4, 5, 6]).delete()
+            return objs
+
+        stage_objects = sync_stages(pipeline_sales)
+        sync_stages(pipeline_rent)
+
+        self.stdout.write(self.style.SUCCESS(
+            f'Funis configurados com 6 etapas: Novo Lead → Em Atendimento → Visita → Proposta → Fechado → Perdido'
+        ))
 
         # 3. Criar Usuários de Demonstração (Corretores e Gestor)
         manager_user, _ = User.objects.get_or_create(

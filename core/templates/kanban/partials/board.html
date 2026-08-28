@@ -1,7 +1,7 @@
 <!-- Quadro Kanban com as 6 Colunas do Funil Imobiliário -->
 <div class="flex gap-4 overflow-x-auto pb-6 items-start select-none">
     {% for stage in stages %}
-    <div class="bg-slate-200/80 rounded-2xl p-3 w-80 flex-shrink-0 flex flex-col max-h-[calc(100vh-210px)] border border-slate-300/60 shadow-xs"
+    <div class="bg-slate-100 rounded-lg p-3 w-72 sm:w-80 flex-shrink-0 flex flex-col max-h-[calc(100vh-210px)] border border-slate-200"
          ondragover="handleDragOver(event)" 
          ondrop="handleDrop(event, {{ stage.id }}, '{{ stage.stage_type }}')"
          id="stage-column-{{ stage.id }}">
@@ -9,11 +9,11 @@
         <!-- Topo da Coluna: Nome do Estágio, Contagem e Soma Financeira R$ -->
         <div class="pb-3 border-b border-slate-300/80 mb-3 flex flex-col gap-1">
             <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ stage.color }};"></span>
-                    <h3 class="font-extrabold text-slate-800 text-xs uppercase tracking-wider">{{ stage.name }}</h3>
+                <div class="flex items-center gap-2 min-w-0" title="{% if stage.name == 'Novo Lead' %}Acabou de chegar. Qualifique o contato e o orçamento.{% elif stage.name == 'Em Atendimento' %}Contato estabelecido. Apresente imóveis e tire dúvidas.{% elif stage.name == 'Visita Agendada' %}Interesse real. Agende visita e controle chaves.{% elif stage.name == 'Proposta / Negociação' %}Quer fechar. Proposta, valores e documentação.{% elif stage.name == 'Fechado (Ganho)' %}Negócio concluído. Contrato e comissão.{% elif stage.name == 'Perdido (Arquivado)' %}Não compra agora. Guarde para reabordagem.{% endif %}">
+                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: {{ stage.color }};"></span>
+                    <h3 class="font-semibold text-slate-800 text-xs tracking-wide truncate">{{ stage.name }}</h3>
                 </div>
-                <span class="bg-white text-slate-700 text-xs px-2 py-0.5 rounded-full font-black shadow-xs border border-slate-200">
+                <span class="bg-white text-slate-700 text-xs px-2 py-0.5 rounded-full font-semibold shadow-xs border border-slate-200">
                     {{ stage.leads.count }}
                 </span>
             </div>
@@ -21,7 +21,7 @@
             <!-- Resumo Financeiro Acumulado na Coluna (VGV Potencial) -->
             <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1">
                 <span>VGV Acumulado:</span>
-                <span class="font-extrabold text-slate-800">R$ {{ stage.total_budget|floatformat:2 }}</span>
+                <span class="font-semibold text-slate-800">R$ {{ stage.total_budget|floatformat:2 }}</span>
             </div>
         </div>
 
