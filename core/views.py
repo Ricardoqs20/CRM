@@ -1688,7 +1688,8 @@ def google_login_start(request):
     request.session['google_oauth_state'] = state
     request.session['google_oauth_next'] = request.GET.get('next', '/')
 
-    redirect_uri = request.build_absolute_uri('/login/google/callback/')
+    # Sempre usar URI fixa (Google bloqueia IP privado tipo 192.168.x.x)
+    redirect_uri = getattr(settings, 'GOOGLE_REDIRECT_URI', '') or 'http://127.0.0.1:8000/login/google/callback/'
     params = {
         'client_id': client_id,
         'redirect_uri': redirect_uri,
@@ -1727,7 +1728,7 @@ def google_login_callback(request):
         messages.error(request, 'Código Google ausente.')
         return redirect('crm_login')
 
-    redirect_uri = request.build_absolute_uri('/login/google/callback/')
+    redirect_uri = getattr(settings, 'GOOGLE_REDIRECT_URI', '') or 'http://127.0.0.1:8000/login/google/callback/'
     token_data = urllib.parse.urlencode({
         'code': code,
         'client_id': client_id,

@@ -129,3 +129,5 @@ LOGOUT_REDIRECT_URL = '/login/'
 # Authorized redirect URI: http://127.0.0.1:8000/login/google/callback/
 GOOGLE_CLIENT_ID = ''
 GOOGLE_CLIENT_SECRET = ''
+# OBRIGATÓRIO usar 127.0.0.1 (não use 192.168.x.x — Google bloqueia IP privado)
+GOOGLE_REDIRECT_URI = 'http://127.0.0.1:8000/login/google/callback/'
