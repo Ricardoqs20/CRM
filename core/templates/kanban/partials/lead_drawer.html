@@ -218,11 +218,158 @@
         </div>
 
         <!-- Bloco de Preferências Detalhadas do Cliente -->
-        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <h3 class="text-xs font-extrabold text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <i data-lucide="target" class="w-4 h-4 text-emerald-600"></i>
-                <span>Perfil de Busca & Preferências</span>
-            </h3>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs" x-data="{ prefFormOpen: false }">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <i data-lucide="target" class="w-4 h-4 text-emerald-600"></i>
+                    <span>Perfil de Busca & Preferências</span>
+                </h3>
+                <button type="button" @click="prefFormOpen = !prefFormOpen" class="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+                    <span x-text="prefFormOpen ? 'Fechar' : '{% if lead.client.preferences %}⚙️ Editar Preferências{% else %}+ Definir Preferências{% endif %}'"></span>
+                </button>
+            </div>
+
+            <!-- Formulário Expansível Alpine.js -->
+            <div x-show="prefFormOpen" x-cloak class="mb-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                {% with pref=lead.client.preferences %}
+                <form method="POST" action="{% url 'client_preferences_save' lead.client.id %}" class="space-y-3">
+                    {% csrf_token %}
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Finalidade</label>
+                            <select name="transaction_type" class="w-full text-xs bg-white border border-slate-300 rounded-lg p-1.5 outline-none">
+                                <option value="buy" {% if pref.transaction_type == 'buy' or not pref %}selected{% endif %}>Compra</option>
+                                <option value="rent" {% if pref.transaction_type == 'rent' %}selected{% endif %}>Locação</option>
+                                <option value="both" {% if pref.transaction_type == 'both' %}selected{% endif %}>Ambos</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Preço Mín (R$)</label>
+                            <input type="number" step="0.01" name="min_price" value="{{ pref.min_price|default:'' }}" placeholder="0.00"
+                                   class="w-full text-xs bg-white border border-slate-300 rounded-lg p-1.5 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Preço Máx (R$)</label>
+                            <input type="number" step="0.01" name="max_price" value="{{ pref.max_price|default:'' }}" placeholder="0.00"
+                                   class="w-full text-xs bg-white border border-slate-300 rounded-lg p-1.5 outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Bairros (separados por vírgula)</label>
+                            <input type="text" name="preferred_locations" value="{% if pref.preferred_locations %}{{ pref.preferred_locations|join:', ' }}{% else %}{{ lead.preferred_location|default:'' }}{% endif %}"
+                                   placeholder="Ex: Renascença, Calhau"
+                                   class="w-full text-xs bg-white border border-slate-300 rounded-lg p-1.5 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-1">Pagamento</label>
+                            <select name="payment_method" class="w-full text-xs bg-white border border-slate-300 rounded-lg p-1.5 outline-none">
+                                <option value="cash" {% if pref.payment_method == 'cash' %}selected{% endif %}>À Vista</option>
+                                <option value="financing" {% if pref.payment_method == 'financing' or not pref %}selected{% endif %}>Financiamento</option>
+                                <option value="consortium" {% if pref.payment_method == 'consortium' %}selected{% endif %}>Consórcio</option>
+                                <option value="installment" {% if pref.payment_method == 'installment' %}selected{% endif %}>Parcelamento Direto</option>
+                                <option value="trade_in" {% if pref.payment_method == 'trade_in' %}selected{% endif %}>Permuta</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-700 mb-1">Tipos de Imóvel</label>
+                        <div class="grid grid-cols-3 gap-1.5 text-[11px]">
+                            <label class="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded cursor-pointer">
+                                <input type="checkbox" name="property_types" value="apartment" {% if not pref or 'apartment' in pref.property_types %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>Apto</span>
+                            </label>
+                            <label class="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded cursor-pointer">
+                                <input type="checkbox" name="property_types" value="house" {% if 'house' in pref.property_types %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>Casa</span>
+                            </label>
+                            <label class="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded cursor-pointer">
+                                <input type="checkbox" name="property_types" value="penthouse" {% if 'penthouse' in pref.property_types %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>Cobertura</span>
+                            </label>
+                            <label class="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded cursor-pointer">
+                                <input type="checkbox" name="property_types" value="land" {% if 'land' in pref.property_types %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>Terreno</span>
+                            </label>
+                            <label class="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded cursor-pointer">
+                                <input type="checkbox" name="property_types" value="commercial" {% if 'commercial' in pref.property_types %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>Comercial</span>
+                            </label>
+                            <label class="flex items-center gap-1 p-1 bg-white border border-slate-200 rounded cursor-pointer">
+                                <input type="checkbox" name="property_types" value="studio" {% if 'studio' in pref.property_types %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>Studio</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Quartos</label>
+                            <input type="number" name="min_bedrooms" value="{{ pref.min_bedrooms|default:0 }}" min="0"
+                                   class="w-full text-xs bg-white border border-slate-300 rounded p-1 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Suítes</label>
+                            <input type="number" name="min_suites" value="{{ pref.min_suites|default:0 }}" min="0"
+                                   class="w-full text-xs bg-white border border-slate-300 rounded p-1 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Vagas</label>
+                            <input type="number" name="min_parking_spaces" value="{{ pref.min_parking_spaces|default:0 }}" min="0"
+                                   class="w-full text-xs bg-white border border-slate-300 rounded p-1 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Área (m²)</label>
+                            <input type="number" step="0.01" name="min_area_m2" value="{{ pref.min_area_m2|default:'' }}" placeholder="0.00"
+                                   class="w-full text-xs bg-white border border-slate-300 rounded p-1 outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-600 mb-1">Diferenciais Desejados</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-1 text-[11px]">
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" name="pets_allowed" {% if pref.pets_allowed %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>🐾 Pets</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" name="gourmet_balcony" {% if pref.gourmet_balcony %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>🍖 Varanda</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" name="pool_or_leisure" {% if pref.pool_or_leisure %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>🏊 Lazer</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" name="morning_sun" {% if pref.morning_sun %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>☀️ Sol Manhã</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" name="elevator" {% if pref.elevator %}checked{% endif %} class="rounded text-emerald-600">
+                                <span>🛗 Elevador</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <input type="text" name="notes" value="{{ pref.notes|default:'' }}" placeholder="Obs sobre preferências..."
+                               class="w-full text-xs bg-white border border-slate-300 rounded-lg p-1.5 outline-none">
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-1">
+                        <button type="button" @click="prefFormOpen = false" class="px-2.5 py-1 text-xs text-slate-500 hover:text-slate-700">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1 rounded-lg transition shadow-xs">
+                            Salvar Preferências
+                        </button>
+                    </div>
+                </form>
+                {% endwith %}
+            </div>
 
             {% if lead.client.preferences %}
             {% with pref=lead.client.preferences %}

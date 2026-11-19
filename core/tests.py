@@ -1,11 +1,13 @@
 import json
 from django.test import TestCase, Client
+from django.test.utils import override_settings
 from django.urls import reverse
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import timedelta
+from django.core.files.uploadedfile import SimpleUploadedFile
 from core.models import (
-    Property, Person, UserProfile, Pipeline, Stage, PropertyLead,
+    Property, PropertyImage, Person, UserProfile, Pipeline, Stage, PropertyLead,
     ClientPreference, InteractionLog, Activity, PropertyVisit,
     WhatsAppTemplate
 )
@@ -76,6 +78,7 @@ class RealEstateCRMTestCase(TestCase):
         )
 
     def test_kanban_view_loads(self):
+        self.client.force_login(self.agent_user)
         response = self.client.get(reverse('kanban'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '1. Novo Lead')
@@ -85,6 +88,7 @@ class RealEstateCRMTestCase(TestCase):
         self.assertContains(response, 'Sem contato há >48h')
 
     def test_lead_drawer_view(self):
+        self.client.force_login(self.agent_user)
         response = self.client.get(reverse('lead_detail_drawer', kwargs={'pk': self.lead.id}))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Lucas Cliente')
@@ -153,6 +157,97 @@ class RealEstateCRMTestCase(TestCase):
         response = self.client.get(reverse('property_detail', kwargs={'pk': self.property.id}))
         self.assertTrue(response.context['can_view_owner'])
         self.assertContains(response, '(98) 99999-0000')
+
+    def test_property_create_with_owner_and_images(self):
+        self.client.force_login(self.agent_user)
+        
+        # Testar GET: deve conter 'owners' com o proprietário presente
+        get_response = self.client.get(reverse('property_create'))
+        self.assertEqual(get_response.status_code, 200)
+        self.assertIn('owners', get_response.context)
+        self.assertIn(self.owner, get_response.context['owners'])
+
+        # Testar POST com upload múltiplo de imagens e vínculo de owner
+        image1 = SimpleUploadedFile('foto1.jpg', b'file_content_1', content_type='image/jpeg')
+        image2 = SimpleUploadedFile('foto2.jpg', b'file_content_2', content_type='image/jpeg')
+
+        post_data = {
+            'code': 'AP9999',
+            'title': 'Apartamento com Fotos e Proprietário',
+            'property_type': 'apartment',
+            'transaction_type': 'sale',
+            'sale_price': '750000.00',
+            'neighborhood': 'Ponta d Areia',
+            'owner': self.owner.id,
+            'images': [image1, image2]
+        }
+
+        response = self.client.post(reverse('property_create'), post_data)
+        self.assertEqual(response.status_code, 302)
+
+        prop = Property.objects.filter(code='AP9999').first()
+        self.assertIsNotNone(prop)
+        self.assertEqual(prop.owner, self.owner)
+        self.assertEqual(prop.images.count(), 2)
+        
+        # Primeira imagem deve ser capa automaticamente
+        img_featured = prop.images.filter(is_featured=True).first()
+        self.assertIsNotNone(img_featured)
+        self.assertEqual(img_featured.order, 0)
+
+    def test_property_edit_owner_and_image_management(self):
+        self.client.force_login(self.agent_user)
+
+        # Adicionar 2 imagens iniciais à propriedade de teste
+        img1 = PropertyImage.objects.create(
+            property=self.property,
+            image=SimpleUploadedFile('existente1.jpg', b'img1', content_type='image/jpeg'),
+            is_featured=True
+        )
+        img2 = PropertyImage.objects.create(
+            property=self.property,
+            image=SimpleUploadedFile('existente2.jpg', b'img2', content_type='image/jpeg'),
+            is_featured=False
+        )
+
+        novo_proprietario = Person.objects.create(
+            name='Dona Maria Nova Proprietária',
+            phone='(98) 98888-1111',
+            client_type='owner'
+        )
+
+        # Nova foto a ser enviada no edit
+        img3 = SimpleUploadedFile('nova_foto.jpg', b'img3', content_type='image/jpeg')
+
+        # Editar: trocar owner para novo_proprietario, deletar img1, definir img2 como capa, subir img3
+        post_data = {
+            'code': self.property.code,
+            'title': self.property.title,
+            'property_type': self.property.property_type,
+            'transaction_type': self.property.transaction_type,
+            'sale_price': '900000.00',
+            'neighborhood': self.property.neighborhood,
+            'owner': novo_proprietario.id,
+            'delete_images': [img1.id],
+            'featured_image': img2.id,
+            'images': [img3]
+        }
+
+        response = self.client.post(reverse('property_edit', kwargs={'pk': self.property.id}), post_data)
+        self.assertEqual(response.status_code, 302)
+
+        self.property.refresh_from_db()
+        self.assertEqual(self.property.owner, novo_proprietario)
+        
+        # img1 foi excluída
+        self.assertFalse(PropertyImage.objects.filter(id=img1.id).exists())
+        
+        # img2 virou capa
+        img2.refresh_from_db()
+        self.assertTrue(img2.is_featured)
+
+        # Total de imagens agora é 2 (img2 e img3)
+        self.assertEqual(self.property.images.count(), 2)
 
 
 class MatchEngineTestCase(TestCase):
@@ -583,6 +678,7 @@ class DashboardAnalyticsTestCase(TestCase):
         self.assertIn('Preço acima do orçamento', lost_labels)
 
 
+@override_settings(WEBHOOK_API_KEY='test_webhook_key')
 class IntegrationsTestCase(TestCase):
     """Testes Automatizados para a Fase 7: Webhooks, Roteamento, Templates WhatsApp e Feed XML"""
     def setUp(self):
@@ -653,7 +749,7 @@ class IntegrationsTestCase(TestCase):
             '/api/webhooks/leads/',
             data=json.dumps(payload),
             content_type='application/json',
-            HTTP_X_API_KEY='imobicrm_secret_key_2026'
+            HTTP_X_API_KEY='test_webhook_key'
         )
         self.assertEqual(response.status_code, 201)
         data = response.json()
@@ -686,7 +782,7 @@ class IntegrationsTestCase(TestCase):
             '/api/webhooks/leads/',
             data=json.dumps(payload),
             content_type='application/json',
-            HTTP_X_API_KEY='imobicrm_secret_key_2026'
+            HTTP_X_API_KEY='test_webhook_key'
         )
         self.assertEqual(response.status_code, 201)
         lead = PropertyLead.objects.get(id=response.json()['lead_id'])

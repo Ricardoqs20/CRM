@@ -18,6 +18,7 @@ from core.views import (
     whatsapp_template_list_view, whatsapp_template_save_view,
     whatsapp_template_delete_view, lead_template_message_view,
     contact_list_view, contact_create_view, contact_edit_view, contact_detail_view,
+    client_preferences_save_view,
     crm_login_view, crm_logout_view, google_login_start, google_login_callback
 )
 
@@ -73,6 +74,7 @@ urlpatterns = [
     path('contatos/novo/', contact_create_view, name='contact_create'),
     path('contatos/<int:pk>/', contact_detail_view, name='contact_detail'),
     path('contatos/<int:pk>/editar/', contact_edit_view, name='contact_edit'),
+    path('contatos/<int:person_id>/preferencias/', client_preferences_save_view, name='client_preferences_save'),
 
     # Módulo de Templates de WhatsApp
     path('templates/', whatsapp_template_list_view, name='whatsapp_template_list'),

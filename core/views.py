@@ -4,8 +4,9 @@ from datetime import timedelta, datetime
 from decimal import Decimal
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
-from django.db.models import Q, Prefetch, Sum, Count, Avg
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse, HttpResponse, Http404
+from django.db.models import Q, Prefetch, Sum, Count, Avg, Case, When
 from django.utils import timezone
 from django.conf import settings
 from rest_framework import viewsets, status
@@ -15,7 +16,7 @@ from rest_framework.response import Response
 from .models import (
     Person, Stage, PropertyLead, Pipeline,
     Property, PropertyImage, Activity, InteractionLog,
-    PropertyVisit, UserProfile, WhatsAppTemplate
+    PropertyVisit, UserProfile, WhatsAppTemplate, ClientPreference
 )
 from .serializers import (
     PersonSerializer, StageSerializer, PropertyLeadSerializer,
@@ -63,11 +64,21 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
 
 # ==========================================
+# PERMISSÕES & ISOLAMENTO POR CORRETOR
+# ==========================================
+
+def is_user_manager(user):
+    return user.is_authenticated and (user.is_superuser or UserProfile.objects.filter(user=user, role='manager').exists())
+
+
+# ==========================================
 # VIEWS DO FUNIL KANBAN & VISÃO 360° DO LEAD
 # ==========================================
 
+@login_required(login_url='crm_login')
 def kanban_view(request):
     """View do Funil Kanban com Filtros Reativos HTMX"""
+    user_is_mgr = is_user_manager(request.user)
     pipeline = Pipeline.objects.filter(is_default=True).first() or Pipeline.objects.first()
     
     q = request.GET.get('q', '').strip()
@@ -77,10 +88,13 @@ def kanban_view(request):
     lead_filter = Q()
     if q:
         lead_filter &= (Q(title__icontains=q) | Q(client__name__icontains=q) | Q(client__phone__icontains=q))
-    if agent_id:
-        lead_filter &= Q(agent_id=agent_id)
     if transaction_type:
         lead_filter &= Q(transaction_type=transaction_type)
+
+    if not user_is_mgr:
+        lead_filter &= Q(agent=request.user)
+    elif agent_id:
+        lead_filter &= Q(agent_id=agent_id)
 
     stages = Stage.objects.filter(pipeline=pipeline).prefetch_related(
         Prefetch(
@@ -98,6 +112,7 @@ def kanban_view(request):
         'q': q,
         'current_agent': agent_id,
         'current_trans': transaction_type,
+        'is_manager': user_is_mgr,
     }
 
     if request.headers.get('HX-Request'):
@@ -106,6 +121,7 @@ def kanban_view(request):
     return render(request, 'kanban/kanban.html', context)
 
 
+@login_required(login_url='crm_login')
 def lead_detail_drawer_view(request, pk):
     """Carrega o conteúdo da gaveta lateral da Visão 360° do Lead com Match de Imóveis, Visitas e Tarefas"""
     lead = get_object_or_404(
@@ -120,6 +136,11 @@ def lead_detail_drawer_view(request, pk):
                             ),
         pk=pk
     )
+
+    if not is_user_manager(request.user):
+        if lead.agent and lead.agent != request.user:
+            raise Http404("Você não tem permissão para visualizar este lead.")
+
     stages = Stage.objects.filter(pipeline=lead.pipeline).order_by('order')
     matching_properties = get_matching_properties_for_lead(lead)
     all_properties = Property.objects.filter(status__in=['available', 'draft', 'reserved']).order_by('code')
@@ -134,6 +155,7 @@ def lead_detail_drawer_view(request, pk):
     })
 
 
+@login_required(login_url='crm_login')
 def lead_toggle_property_link(request, lead_id, property_id):
     """Vincula ou desvincula um imóvel do lead a partir da seção de Match"""
     lead = get_object_or_404(PropertyLead, pk=lead_id)
@@ -160,6 +182,7 @@ def lead_toggle_property_link(request, lead_id, property_id):
     })
 
 
+@login_required(login_url='crm_login')
 def lead_add_note_view(request, pk):
     """Adiciona uma nova anotação/interação na timeline do lead e atualiza a última interação"""
     lead = get_object_or_404(PropertyLead, pk=pk)
@@ -181,6 +204,7 @@ def lead_add_note_view(request, pk):
     return render(request, 'kanban/partials/timeline.html', {'lead': lead})
 
 
+@login_required(login_url='crm_login')
 def lead_move_stage_view(request, pk):
     """Move o lead entre os estágios do funil, salvando motivo de perda ou sucesso"""
     lead = get_object_or_404(PropertyLead, pk=pk)
@@ -232,6 +256,7 @@ def lead_move_stage_view(request, pk):
     return JsonResponse({'error': 'Método inválido'}, status=405)
 
 
+@login_required(login_url='crm_login')
 def lead_quick_create_view(request):
     """Cadastro Rápido de Novo Lead no Funil (Etapa Inicial)"""
     if request.method == 'POST':
@@ -285,6 +310,7 @@ def lead_quick_create_view(request):
 # VIEWS DO ESTOQUE DE IMÓVEIS
 # ==========================================
 
+@login_required(login_url='crm_login')
 def property_list_view(request):
     """Listagem do Estoque de Imóveis com Filtros Dinâmicos HTMX"""
     queryset = Property.objects.all().prefetch_related('images')
@@ -346,6 +372,7 @@ def property_list_view(request):
     return render(request, 'properties/list.html', context)
 
 
+@login_required(login_url='crm_login')
 def property_detail_view(request, pk):
     """Ficha Completa do Imóvel com Match de Leads Interessados e Proteção de Privacidade"""
     property_obj = get_object_or_404(Property.objects.prefetch_related('images'), pk=pk)
@@ -359,6 +386,7 @@ def property_detail_view(request, pk):
     })
 
 
+@login_required(login_url='crm_login')
 def property_create_view(request):
     """Cadastro Completo de Imóvel"""
     if request.method == 'POST':
@@ -395,6 +423,9 @@ def property_create_view(request):
         elevator = 'elevator' in request.POST
         furnished = 'furnished' in request.POST
 
+        owner_id = request.POST.get('owner') or None
+        owner = Person.objects.filter(pk=owner_id).first() if owner_id else None
+
         prop = Property.objects.create(
             code=code,
             title=title,
@@ -427,13 +458,29 @@ def property_create_view(request):
             gym=gym,
             elevator=elevator,
             furnished=furnished,
+            owner=owner,
             captured_by=request.user if request.user.is_authenticated else None
         )
+
+        # Processar upload de fotos
+        images = request.FILES.getlist('images')
+        has_featured = False
+        for idx, img_file in enumerate(images):
+            is_feat = (idx == 0)
+            PropertyImage.objects.create(
+                property=prop,
+                image=img_file,
+                is_featured=is_feat
+            )
 
         messages.success(request, f'Imóvel {prop.code} cadastrado com sucesso!')
         return redirect('property_detail', pk=prop.id)
 
-    return render(request, 'properties/form.html', {'property': None})
+    owners = Person.objects.all().order_by(
+        Case(When(client_type='owner', then=0), default=1),
+        'name'
+    )
+    return render(request, 'properties/form.html', {'property': None, 'owners': owners})
 
 
 def property_edit_view(request, pk):
@@ -474,11 +521,50 @@ def property_edit_view(request, pk):
         prop.elevator = 'elevator' in request.POST
         prop.furnished = 'furnished' in request.POST
 
+        owner_id = request.POST.get('owner') or None
+        prop.owner = Person.objects.filter(pk=owner_id).first() if owner_id else None
+
         prop.save()
+
+        # 1. Tratar remoção de fotos marcadas para exclusão
+        delete_images_ids = request.POST.getlist('delete_images')
+        if delete_images_ids:
+            prop.images.filter(id__in=delete_images_ids).delete()
+
+        # 2. Atualizar foto de capa existente
+        featured_image_id = request.POST.get('featured_image')
+        if featured_image_id:
+            prop.images.all().update(is_featured=False)
+            prop.images.filter(id=featured_image_id).update(is_featured=True)
+
+        # 3. Adicionar novas fotos enviadas
+        new_images = request.FILES.getlist('images')
+        has_featured = prop.images.filter(is_featured=True).exists()
+        for idx, img_file in enumerate(new_images):
+            is_feat = False
+            if not has_featured and idx == 0:
+                is_feat = True
+                has_featured = True
+            PropertyImage.objects.create(
+                property=prop,
+                image=img_file,
+                is_featured=is_feat
+            )
+
+        # Se houver imagens cadastradas mas nenhuma como capa, definir a primeira
+        if not prop.images.filter(is_featured=True).exists() and prop.images.exists():
+            first_img = prop.images.first()
+            first_img.is_featured = True
+            first_img.save()
+
         messages.success(request, f'Imóvel {prop.code} atualizado com sucesso!')
         return redirect('property_detail', pk=prop.id)
 
-    return render(request, 'properties/form.html', {'property': prop})
+    owners = Person.objects.all().order_by(
+        Case(When(client_type='owner', then=0), default=1),
+        'name'
+    )
+    return render(request, 'properties/form.html', {'property': prop, 'owners': owners})
 
 
 def property_quick_create_view(request):
@@ -1234,7 +1320,7 @@ def lead_webhook_ingest_view(request):
 
     # 1. Autenticação por API Key
     provided_key = request.headers.get('X-API-KEY') or request.GET.get('api_key')
-    expected_key = getattr(settings, 'WEBHOOK_API_KEY', 'imobicrm_secret_key_2026')
+    expected_key = settings.WEBHOOK_API_KEY
 
     if not provided_key or provided_key != expected_key:
         return JsonResponse({
@@ -1623,10 +1709,46 @@ def contact_detail_view(request, pk):
     prefs = getattr(person, 'preferences', None)
     return render(request, 'contacts/detail.html', {
         'contact': person,
+        'person': person,
         'prefs': prefs,
         'leads': person.leads.select_related('stage', 'pipeline').all()[:20],
         'owned': person.owned_properties.all()[:20],
     })
+
+
+def client_preferences_save_view(request, person_id):
+    """Salva/atualiza as preferências de busca do cliente (ClientPreference)"""
+    if request.method != 'POST':
+        return redirect(request.META.get('HTTP_REFERER', 'contact_list'))
+
+    person = get_object_or_404(Person, pk=person_id)
+
+    raw_locations = request.POST.get('preferred_locations', '')
+    preferred_locations = [x.strip() for x in raw_locations.split(',') if x.strip()]
+    property_types = request.POST.getlist('property_types')
+
+    defaults = {
+        'transaction_type': request.POST.get('transaction_type', 'buy'),
+        'property_types': property_types,
+        'preferred_locations': preferred_locations,
+        'min_price': request.POST.get('min_price') or 0.00,
+        'max_price': request.POST.get('max_price') or 0.00,
+        'payment_method': request.POST.get('payment_method', 'cash'),
+        'min_bedrooms': int(request.POST.get('min_bedrooms') or 0),
+        'min_suites': int(request.POST.get('min_suites') or 0),
+        'min_parking_spaces': int(request.POST.get('min_parking_spaces') or 0),
+        'min_area_m2': request.POST.get('min_area_m2') or 0.00,
+        'pets_allowed': 'pets_allowed' in request.POST,
+        'gourmet_balcony': 'gourmet_balcony' in request.POST,
+        'pool_or_leisure': 'pool_or_leisure' in request.POST,
+        'morning_sun': 'morning_sun' in request.POST,
+        'elevator': 'elevator' in request.POST,
+        'notes': request.POST.get('notes', '').strip(),
+    }
+
+    ClientPreference.objects.update_or_create(person=person, defaults=defaults)
+    messages.success(request, f'Preferências de {person.name} atualizadas com sucesso!')
+    return redirect(request.META.get('HTTP_REFERER', 'contact_list'))
 
 
 

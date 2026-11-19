@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -101,7 +102,7 @@ MAILERS = {
 }
 
 # Segurança e Integrações (Fase 7)
-WEBHOOK_API_KEY = 'imobicrm_secret_key_2026'
+WEBHOOK_API_KEY = os.environ.get('WEBHOOK_API_KEY', 'dev-local-webhook-key')
 
 ALLOWED_HOSTS = ['*']
 

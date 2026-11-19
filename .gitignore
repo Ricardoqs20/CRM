@@ -1,0 +1,9 @@
+db.sqlite3
+db.sqlite3.bak
+.env
+projeto_crm.txt
+__pycache__/
+*.pyc
+venv/
+.venv/
+media/
