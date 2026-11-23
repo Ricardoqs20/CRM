@@ -133,5 +133,42 @@ class PropertyImage(models.Model):
         verbose_name_plural = 'Fotos dos Imóveis'
         ordering = ['order', 'id']
 
-    def __str__(self):
-        return f"Foto de {self.property.code} ({self.caption or 'Sem legenda'})"
+    def save(self, *args, **kwargs):
+        """Compress and resize image using Pillow before saving.
+        If Pillow cannot process the uploaded file (e.g., invalid image data),
+        fall back to the default save behavior to avoid breaking the transaction.
+        """
+        from io import BytesIO
+        from django.core.files.base import ContentFile
+        try:
+            from PIL import Image
+        except Exception:
+            # Pillow not installed or import error – just save normally.
+            super().save(*args, **kwargs)
+            return
+        if not self.image:
+            super().save(*args, **kwargs)
+            return
+        try:
+            # Open the image
+            img = Image.open(self.image)
+            # Convert to RGB if needed
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            # Resize if width exceeds 1600px while maintaining aspect ratio
+            max_width = 1600
+            if img.width > max_width:
+                ratio = max_width / float(img.width)
+                new_height = int(float(img.height) * ratio)
+                img = img.resize((max_width, new_height), Image.ANTIALIAS)
+            # Save to BytesIO as JPEG with quality=80 and optimize
+            buffer = BytesIO()
+            img.save(buffer, format='JPEG', quality=80, optimize=True)
+            buffer.seek(0)
+            # Replace the image file without triggering another save()
+            self.image.save(self.image.name, ContentFile(buffer.read()), save=False)
+        except Exception:
+            # If any error occurs (e.g., UnidentifiedImageError), skip processing.
+            pass
+        super().save(*args, **kwargs)
+

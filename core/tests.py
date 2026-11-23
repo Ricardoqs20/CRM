@@ -1,6 +1,20 @@
 import json
-from django.test import TestCase, Client
 from django.test.utils import override_settings
+from django.test import TestCase, Client
+
+def make_test_image(filename='test.jpg'):
+    """Create an in‑memory JPEG image for testing.
+    Returns a SimpleUploadedFile suitable for Django test client uploads.
+    """
+    from io import BytesIO
+    from PIL import Image
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    img = Image.new('RGB', (100, 100), color='blue')
+    buf = BytesIO()
+    img.save(buf, format='JPEG')
+    buf.seek(0)
+    return SimpleUploadedFile(filename, buf.read(), content_type='image/jpeg')
+
 from django.urls import reverse
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -168,7 +182,7 @@ class RealEstateCRMTestCase(TestCase):
         self.assertIn(self.owner, get_response.context['owners'])
 
         # Testar POST com upload múltiplo de imagens e vínculo de owner
-        image1 = SimpleUploadedFile('foto1.jpg', b'file_content_1', content_type='image/jpeg')
+        image1 = make_test_image('foto1.jpg')
         image2 = SimpleUploadedFile('foto2.jpg', b'file_content_2', content_type='image/jpeg')
 
         post_data = {
