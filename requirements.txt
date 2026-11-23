@@ -1,0 +1,10 @@
+﻿Django>=5.0,<6.0
+djangorestframework
+Pillow
+gunicorn
+psycopg2-binary
+dj-database-url
+python-dotenv
+whitenoise
+boto3
+django-storages
