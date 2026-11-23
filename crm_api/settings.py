@@ -127,11 +127,11 @@ LOGOUT_REDIRECT_URL = '/login/'
 
 # Google OAuth (opcional — preencha para habilitar "Entrar com Google")
 # Crie em: https://console.cloud.google.com/apis/credentials
-# Authorized redirect URI: http://127.0.0.1:8000/login/google/callback/
+# Authorized redirect URI: https://18.220.198.164.sslip.io/login/google/callback/
 GOOGLE_CLIENT_ID = ''
 GOOGLE_CLIENT_SECRET = ''
 # OBRIGATÓRIO usar 127.0.0.1 (não use 192.168.x.x — Google bloqueia IP privado)
-GOOGLE_REDIRECT_URI = 'http://127.0.0.1:8000/login/google/callback/'
+GOOGLE_REDIRECT_URI = ''
 
 
 # Em desenvolvimento, aceita CSRF de qualquer host da LAN (celular na mesma Wi‑Fi)
