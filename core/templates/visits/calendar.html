@@ -10,7 +10,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="space-y-6 max-w-7xl mx-auto" x-data="{ feedbackModalOpen: false, currentVisitId: null, scheduleModalOpen: false, copyFeedUrl(url) { navigator.clipboard.writeText(url).then(() => { alert('Link do Feed (.ics) copiado para a área de transferência!'); }); } }">
+<div class="space-y-6 max-w-7xl mx-auto" x-data="{ feedbackModalOpen: false, currentVisitId: null, scheduleModalOpen: false }">
 
     <!-- Barra Superior Compacta: Sincronização Automática de Agenda -->
     <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
@@ -53,12 +53,6 @@
                title="Assinar feed de visitas no Apple Calendário / macOS / iOS">
                 <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i> Sincronizar com Apple Calendário
             </a>
-            <button type="button"
-                    @click="copyFeedUrl('{{ ical_feed_url }}')"
-                    class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
-                    title="Copiar link .ics para assinar em outros calendários">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copiar Link .ics
-            </button>
             {% endif %}
         </div>
     </div>
