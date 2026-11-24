@@ -51,6 +51,9 @@ class PropertyVisit(models.Model):
     proposal_details = models.TextField(blank=True, null=True, verbose_name='Condições ou Valores da Proposta')
     rejection_reason = models.CharField(max_length=255, blank=True, null=True, verbose_name='Motivo de Descarte (Preço, Planta, Localização, etc.)')
 
+    # Sincronização Externa (Google Calendar)
+    google_event_id = models.CharField(max_length=255, blank=True, null=True, verbose_name='ID do Evento no Google Agenda')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

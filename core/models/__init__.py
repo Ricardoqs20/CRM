@@ -4,7 +4,7 @@ from .properties import Property, PropertyImage
 from .leads import Pipeline, Stage, PropertyLead
 from .activities import Activity, InteractionLog
 from .visits import PropertyVisit
-from .integrations import WhatsAppTemplate
+from .integrations import WhatsAppTemplate, CalendarIntegration
 
 __all__ = [
     'UserProfile',
@@ -20,4 +20,5 @@ __all__ = [
     'InteractionLog',
     'PropertyVisit',
     'WhatsAppTemplate',
+    'CalendarIntegration',
 ]

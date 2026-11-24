@@ -10,7 +10,58 @@
 {% endblock %}
 
 {% block content %}
-<div class="space-y-6 max-w-7xl mx-auto" x-data="{ feedbackModalOpen: false, currentVisitId: null, scheduleModalOpen: false }">
+<div class="space-y-6 max-w-7xl mx-auto" x-data="{ feedbackModalOpen: false, currentVisitId: null, scheduleModalOpen: false, copyFeedUrl(url) { navigator.clipboard.writeText(url).then(() => { alert('Link do Feed (.ics) copiado para a área de transferência!'); }); } }">
+
+    <!-- Barra Superior Compacta: Sincronização Automática de Agenda -->
+    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <span class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-lg">⚡</span>
+            <div>
+                <h4 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <span>Sincronização Automática de Agenda</span>
+                    {% if calendar_integration and calendar_integration.google_connected %}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Google Agenda Conectado ✓</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">Google Desconectado</span>
+                    {% endif %}
+                </h4>
+                <p class="text-xs text-slate-500">Sincronize visitas em tempo real com seu Google Agenda e assine no Apple Calendário.</p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            {% if calendar_integration and calendar_integration.google_connected %}
+            <a href="{% url 'google_calendar_sync_now' %}"
+               class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sincronizar Agora
+            </a>
+            <a href="{% url 'google_calendar_connect' %}"
+               class="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl text-xs font-semibold transition"
+               title="Reautorizar ou reconectar com outra conta">
+                Reconectar Google
+            </a>
+            {% else %}
+            <a href="{% url 'google_calendar_connect' %}"
+               class="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-purple-600/20 transition">
+                <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Conectar Google Agenda
+            </a>
+            {% endif %}
+
+            {% if webcal_feed_url %}
+            <a href="{{ webcal_feed_url }}"
+               class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+               title="Assinar feed de visitas no Apple Calendário / macOS / iOS">
+                <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i> Sincronizar com Apple Calendário
+            </a>
+            <button type="button"
+                    @click="copyFeedUrl('{{ ical_feed_url }}')"
+                    class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
+                    title="Copiar link .ics para assinar em outros calendários">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> Copiar Link .ics
+            </button>
+            {% endif %}
+        </div>
+    </div>
 
     <!-- KPI / Top Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

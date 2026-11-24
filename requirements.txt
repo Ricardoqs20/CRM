@@ -8,3 +8,6 @@ python-dotenv
 whitenoise
 boto3
 django-storages
+google-api-python-client
+google-auth
+google-auth-oauthlib

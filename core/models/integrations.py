@@ -1,6 +1,30 @@
 import urllib.parse
 import re
+import uuid
 from django.db import models
+from django.contrib.auth.models import User
+
+
+class CalendarIntegration(models.Model):
+    """Integração de Calendário (Google Agenda OAuth2 e Feed Apple Calendar / iCal)"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='calendar_integration', verbose_name='Usuário')
+    google_access_token = models.TextField(blank=True, null=True, verbose_name='Google Access Token')
+    google_refresh_token = models.TextField(blank=True, null=True, verbose_name='Google Refresh Token')
+    google_token_expiry = models.DateTimeField(blank=True, null=True, verbose_name='Expiração do Token Google')
+    google_calendar_id = models.CharField(max_length=255, default='primary', verbose_name='ID do Calendário Google')
+    google_connected = models.BooleanField(default=False, verbose_name='Google Agenda Conectado')
+    ical_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, verbose_name='Token do Feed iCal/Apple')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Integração de Calendário'
+        verbose_name_plural = 'Integrações de Calendários'
+
+    def __str__(self):
+        status = "Conectado" if self.google_connected else "Desconectado"
+        return f"Calendário de {self.user.username} ({status})"
+
 
 class WhatsAppTemplate(models.Model):
     """Modelos de Mensagens Rápidas do WhatsApp com Interpolação de Variáveis"""

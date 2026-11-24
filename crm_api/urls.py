@@ -19,7 +19,9 @@ from core.views import (
     whatsapp_template_delete_view, lead_template_message_view,
     contact_list_view, contact_create_view, contact_edit_view, contact_detail_view,
     client_preferences_save_view,
-    crm_login_view, crm_logout_view, google_login_start, google_login_callback
+    crm_login_view, crm_logout_view, google_login_start, google_login_callback,
+    google_calendar_connect_view, google_calendar_callback_view,
+    google_calendar_sync_now_view, visit_ical_feed_view
 )
 
 router = DefaultRouter()
@@ -62,6 +64,12 @@ urlpatterns = [
     path('visits/<int:visit_id>/feedback/save/', visit_feedback_save_view, name='visit_feedback_save'),
     path('visits/<int:visit_id>/key_action/', visit_key_action_view, name='visit_key_action'),
     path('visits/<int:visit_id>/whatsapp/', visit_whatsapp_confirm_view, name='visit_whatsapp_confirm'),
+    path('visits/feed/<uuid:token>.ics', visit_ical_feed_view, name='visit_ical_feed'),
+
+    # Integrações de Calendário (Google Calendar & Apple)
+    path('integrations/google-calendar/connect/', google_calendar_connect_view, name='google_calendar_connect'),
+    path('integrations/google-calendar/callback/', google_calendar_callback_view, name='google_calendar_callback'),
+    path('integrations/google-calendar/sync-now/', google_calendar_sync_now_view, name='google_calendar_sync_now'),
 
     # Módulo de Tarefas & Follow-ups
     path('tasks/', task_list_view, name='task_list'),

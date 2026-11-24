@@ -1,8 +1,12 @@
 import json
 import random
-from datetime import timedelta, datetime
+import secrets
+import urllib.parse
+import urllib.request
+from datetime import timedelta, datetime, timezone as dt_timezone
 from decimal import Decimal
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse, Http404
@@ -16,7 +20,8 @@ from rest_framework.response import Response
 from .models import (
     Person, Stage, PropertyLead, Pipeline,
     Property, PropertyImage, Activity, InteractionLog,
-    PropertyVisit, UserProfile, WhatsAppTemplate, ClientPreference
+    PropertyVisit, UserProfile, WhatsAppTemplate, ClientPreference,
+    CalendarIntegration
 )
 from .serializers import (
     PersonSerializer, StageSerializer, PropertyLeadSerializer,
@@ -684,6 +689,14 @@ def visit_schedule_view(request):
         'active_leads': active_leads,
         'available_properties': available_properties,
     }
+
+    if request.user.is_authenticated:
+        cal_integration, _ = CalendarIntegration.objects.get_or_create(user=request.user)
+        context['calendar_integration'] = cal_integration
+        context['ical_feed_url'] = request.build_absolute_uri(
+            reverse('visit_ical_feed', kwargs={'token': cal_integration.ical_token})
+        )
+        context['webcal_feed_url'] = context['ical_feed_url'].replace('http://', 'webcal://').replace('https://', 'webcal://')
 
     return render(request, 'visits/calendar.html', context)
 
@@ -1936,3 +1949,172 @@ def google_login_callback(request):
     request.session.pop('google_oauth_state', None)
     messages.success(request, f'Bem-vindo, {user.get_full_name() or user.email}!')
     return redirect(next_url or '/')
+
+
+# ==========================================
+# INTEGRAÇÃO DE CALENDÁRIOS (Google & Apple)
+# ==========================================
+
+def google_calendar_connect_view(request):
+    """Inicia o fluxo OAuth2 para autorizar o Google Calendar"""
+    if not request.user.is_authenticated:
+        return redirect('crm_login')
+
+    client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
+    if not client_id:
+        messages.error(request, 'Google Client ID não configurado no servidor.')
+        return redirect('visit_schedule')
+
+    redirect_uri = request.build_absolute_uri(reverse('google_calendar_callback'))
+    state = secrets.token_urlsafe(32)
+    request.session['google_cal_oauth_state'] = state
+
+    params = {
+        'client_id': client_id,
+        'redirect_uri': redirect_uri,
+        'response_type': 'code',
+        'scope': 'https://www.googleapis.com/auth/calendar.events',
+        'access_type': 'offline',
+        'prompt': 'consent',
+        'state': state,
+    }
+    auth_url = 'https://accounts.google.com/o/oauth2/v2/auth?' + urllib.parse.urlencode(params)
+    return redirect(auth_url)
+
+
+def google_calendar_callback_view(request):
+    """Callback do OAuth2 do Google Calendar: armazena tokens e roda sync inicial"""
+    if not request.user.is_authenticated:
+        return redirect('crm_login')
+
+    expected_state = request.session.pop('google_cal_oauth_state', None)
+    state = request.GET.get('state', '')
+    if not expected_state or state != expected_state:
+        messages.error(request, 'Sessão de autorização inválida ou expirada.')
+        return redirect('visit_schedule')
+
+    code = request.GET.get('code')
+    if not code:
+        err = request.GET.get('error', 'desconhecido')
+        messages.error(request, f'Permissão negada pelo Google: {err}')
+        return redirect('visit_schedule')
+
+    redirect_uri = request.build_absolute_uri(reverse('google_calendar_callback'))
+    token_url = 'https://oauth2.googleapis.com/token'
+    payload = urllib.parse.urlencode({
+        'code': code,
+        'client_id': getattr(settings, 'GOOGLE_CLIENT_ID', ''),
+        'client_secret': getattr(settings, 'GOOGLE_CLIENT_SECRET', ''),
+        'redirect_uri': redirect_uri,
+        'grant_type': 'authorization_code',
+    }).encode('utf-8')
+
+    try:
+        req = urllib.request.Request(token_url, data=payload, headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+    except Exception as e:
+        messages.error(request, f'Erro ao obter tokens do Google: {e}')
+        return redirect('visit_schedule')
+
+    access_token = data.get('access_token')
+    refresh_token = data.get('refresh_token')
+    expires_in = data.get('expires_in', 3600)
+    expiry = timezone.now() + timedelta(seconds=expires_in)
+
+    integration, _ = CalendarIntegration.objects.get_or_create(user=request.user)
+    integration.google_access_token = access_token
+    if refresh_token:
+        integration.google_refresh_token = refresh_token
+    integration.google_token_expiry = expiry
+    integration.google_connected = True
+    integration.save()
+
+    # Carga inicial automática de visitas futuras
+    from core.calendar_sync import initial_sync_future_visits
+    synced = initial_sync_future_visits(request.user)
+
+    messages.success(request, f'Google Agenda conectado com sucesso! {synced} visita(s) futura(s) sincronizada(s).')
+    return redirect('visit_schedule')
+
+
+def google_calendar_sync_now_view(request):
+    """Dispara sincronização manual imediata das visitas futuras para o Google Agenda"""
+    if not request.user.is_authenticated:
+        return redirect('crm_login')
+
+    from core.calendar_sync import initial_sync_future_visits
+    synced = initial_sync_future_visits(request.user)
+    messages.success(request, f'Sincronização concluída! {synced} visita(s) atualizada(s) no seu Google Agenda.')
+    return redirect('visit_schedule')
+
+
+def visit_ical_feed_view(request, token):
+    """
+    Entrega o feed iCalendar (.ics) de visitas exclusivo para o corretor (ou gestor).
+    Permite assinatura única via webcal:// no Apple Calendário, Outlook ou Google Calendar.
+    """
+    integration = get_object_or_404(CalendarIntegration.objects.select_related('user'), ical_token=token)
+    user = integration.user
+
+    is_mgr = user.is_superuser or (hasattr(user, 'profile') and user.profile.role == 'manager')
+    if is_mgr:
+        visits = PropertyVisit.objects.all()
+    else:
+        visits = PropertyVisit.objects.filter(agent=user)
+
+    visits = visits.exclude(status='canceled').select_related('visit_property', 'lead', 'lead__client', 'agent')
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//ImobiCRM//Agenda de Visitas//PT",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:Visitas ImobiCRM ({user.first_name or user.username})",
+        "X-WR-TIMEZONE:America/Sao_Paulo",
+    ]
+
+    def format_dt(dt):
+        return dt.astimezone(dt_timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+
+    for v in visits:
+        prop = v.visit_property
+        client = v.lead.client.name if v.lead and v.lead.client else "Cliente"
+        phone = v.lead.client.phone if v.lead and v.lead.client else ""
+        
+        start_str = format_dt(v.scheduled_date)
+        end_str = format_dt(v.scheduled_date + timedelta(hours=1))
+        created_str = format_dt(v.created_at)
+
+        location = f"{prop.street or ''} {prop.number or ''}, {prop.neighborhood or ''} - {prop.city or ''}".strip(', -')
+        summary = f"Visita: [{prop.code}] {prop.title} - {client}"
+        description = (
+            f"Visita agendada pelo ImobiCRM\\n"
+            f"Imóvel: {prop.code} - {prop.title}\\n"
+            f"Cliente: {client} ({phone})\\n"
+            f"Ponto de Encontro: {v.meeting_point or 'No imóvel'}\\n"
+            f"Status: {v.get_status_display()}\\n"
+            f"Chave: {v.get_key_status_display()}"
+        )
+
+        lines.extend([
+            "BEGIN:VEVENT",
+            f"UID:imobicrm-visit-{v.id}@imobicrm",
+            f"DTSTAMP:{created_str}",
+            f"DTSTART:{start_str}",
+            f"DTEND:{end_str}",
+            f"SUMMARY:{summary}",
+            f"LOCATION:{location}",
+            f"DESCRIPTION:{description}",
+            "STATUS:CONFIRMED",
+            "END:VEVENT",
+        ])
+
+    lines.append("END:VCALENDAR")
+    ics_content = "\r\n".join(lines) + "\r\n"
+
+    response = HttpResponse(ics_content, content_type='text/calendar; charset=utf-8')
+    response['Content-Disposition'] = f'inline; filename="visitas-{user.username}.ics"'
+    return response
+
