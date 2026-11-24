@@ -6,4 +6,7 @@ __pycache__/
 *.pyc
 venv/
 .venv/
-media/
+media/codigo_completo.txt
+__pycache__/
+*.py[cod]
+.env.save*
