@@ -10,3 +10,4 @@ media/codigo_completo.txt
 __pycache__/
 *.py[cod]
 .env.save*
+media/
