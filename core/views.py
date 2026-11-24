@@ -1499,20 +1499,17 @@ def portal_xml_feed_view(request):
 
 
 def whatsapp_template_list_view(request):
-    """Tela de Gestão de Modelos de Mensagens do WhatsApp"""
+    """Tela de Gest?o de Modelos de Mensagens do WhatsApp"""
     templates = WhatsAppTemplate.objects.all().order_by('category', 'title')
     categories = WhatsAppTemplate.CATEGORY_CHOICES
-
+    contacts = Person.objects.exclude(phone='').order_by('name')
+    properties = Property.objects.all().order_by('-created_at')
     return render(request, 'templates_whatsapp/list.html', {
         'templates': templates,
         'categories': categories,
         'contacts': contacts,
         'properties': properties,
     })
-        'templates': templates,
-        'categories': categories,
-    })
-
 
 def whatsapp_template_save_view(request):
     """Criação ou Edição de Modelo de Mensagem do WhatsApp"""
