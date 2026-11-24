@@ -1506,6 +1506,11 @@ def whatsapp_template_list_view(request):
     return render(request, 'templates_whatsapp/list.html', {
         'templates': templates,
         'categories': categories,
+        'contacts': contacts,
+        'properties': properties,
+    })
+        'templates': templates,
+        'categories': categories,
     })
 
 
