@@ -143,4 +143,3 @@ class CalendarSyncTests(TestCase):
         self.assertIn('Sincronização Automática de Agenda', content)
         self.assertIn('Google Agenda Conectado ✓', content)
         self.assertIn('Sincronizar com Apple Calendário', content)
-        self.assertIn('Copiar Link .ics', content)

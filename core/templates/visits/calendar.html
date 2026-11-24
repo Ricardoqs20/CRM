@@ -1,10 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Agenda de Visitas & Controle de Chaves - CRM Imobiliário{% endblock %}
+{% block title %}Agenda de Visitas & Controle de Chaves - ImobiCRM{% endblock %}
 
 {% block header_title %}
 <span class="flex items-center gap-2">
-    <span class="p-2 rounded-xl bg-purple-100 text-purple-700 text-lg">📅</span>
+    <span class="p-1.5 rounded-lg bg-slate-100 text-[#01125B] flex items-center justify-center">
+        <i data-lucide="calendar" class="w-4 h-4"></i>
+    </span>
     <span>Agenda de Visitas & Controle de Chaves</span>
 </span>
 {% endblock %}
@@ -13,14 +15,16 @@
 <div class="space-y-6 max-w-7xl mx-auto" x-data="{ feedbackModalOpen: false, currentVisitId: null, scheduleModalOpen: false }">
 
     <!-- Barra Superior Compacta: Sincronização Automática de Agenda -->
-    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div class="flex items-center gap-3">
-            <span class="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-lg">⚡</span>
+            <span class="w-9 h-9 rounded-xl bg-slate-100 text-[#01125B] flex items-center justify-center font-bold text-sm shrink-0">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            </span>
             <div>
-                <h4 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <h4 class="text-xs font-bold text-slate-800 flex items-center gap-2">
                     <span>Sincronização Automática de Agenda</span>
                     {% if calendar_integration and calendar_integration.google_connected %}
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Google Agenda Conectado ✓</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Google Agenda Conectado ✓</span>
                     {% else %}
                     <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">Google Desconectado</span>
                     {% endif %}
@@ -29,27 +33,27 @@
             </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
             {% if calendar_integration and calendar_integration.google_connected %}
             <a href="{% url 'google_calendar_sync_now' %}"
-               class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition">
+               class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Sincronizar Agora
             </a>
             <a href="{% url 'google_calendar_connect' %}"
-               class="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl text-xs font-semibold transition"
+               class="px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl text-xs font-semibold text-center transition"
                title="Reautorizar ou reconectar com outra conta">
                 Reconectar Google
             </a>
             {% else %}
             <a href="{% url 'google_calendar_connect' %}"
-               class="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-purple-600/20 transition">
+               class="px-3.5 py-2 bg-[#01125B] hover:bg-primary-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition">
                 <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Conectar Google Agenda
             </a>
             {% endif %}
 
             {% if webcal_feed_url %}
             <a href="{{ webcal_feed_url }}"
-               class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+               class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition"
                title="Assinar feed de visitas no Apple Calendário / macOS / iOS">
                 <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i> Sincronizar com Apple Calendário
             </a>
@@ -59,51 +63,51 @@
 
     <!-- KPI / Top Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Visitas da Semana</p>
-                <h3 class="text-2xl font-black text-slate-900 mt-1">{{ total_visits_week }}</h3>
+                <h3 class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{{ total_visits_week }}</h3>
             </div>
-            <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-xl">
-                📅
+            <div class="w-10 h-10 rounded-xl bg-slate-100 text-[#01125B] flex items-center justify-center font-bold text-sm">
+                <i data-lucide="calendar" class="w-5 h-5"></i>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Confirmadas</p>
-                <h3 class="text-2xl font-black text-emerald-600 mt-1">{{ confirmed_visits_count }}</h3>
+                <h3 class="text-2xl font-bold text-emerald-700 mt-1 tabular-nums">{{ confirmed_visits_count }}</h3>
             </div>
-            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xl">
-                ✅
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-sm border border-emerald-100">
+                <i data-lucide="check-circle-2" class="w-5 h-5"></i>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Chaves Retiradas</p>
-                <h3 class="text-2xl font-black text-amber-600 mt-1">{{ keys_with_agent_count }}</h3>
+                <h3 class="text-2xl font-bold text-amber-700 mt-1 tabular-nums">{{ keys_with_agent_count }}</h3>
             </div>
-            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-xl">
-                🔑
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm border border-amber-100">
+                <i data-lucide="key" class="w-5 h-5"></i>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl p-4 border {% if overdue_keys_count > 0 %}border-red-300 bg-red-50/50{% else %}border-slate-200{% endif %} shadow-sm flex items-center justify-between">
+        <div class="bg-white rounded-xl p-4 border {% if overdue_keys_count > 0 %}border-red-300 bg-red-50/20{% else %}border-slate-200{% endif %} shadow-xs flex items-center justify-between">
             <div>
                 <p class="text-xs font-semibold uppercase {% if overdue_keys_count > 0 %}text-red-700 font-bold{% else %}text-slate-500{% endif %} tracking-wider">Chaves Atrasadas (&gt;4h)</p>
-                <h3 class="text-2xl font-black {% if overdue_keys_count > 0 %}text-red-600 animate-pulse{% else %}text-slate-700{% endif %} mt-1">
+                <h3 class="text-2xl font-bold {% if overdue_keys_count > 0 %}text-red-600 animate-pulse{% else %}text-slate-700{% endif %} mt-1 tabular-nums">
                     {{ overdue_keys_count }}
                 </h3>
             </div>
-            <div class="w-12 h-12 rounded-xl {% if overdue_keys_count > 0 %}bg-red-100 text-red-600 animate-bounce{% else %}bg-slate-100 text-slate-500{% endif %} flex items-center justify-center font-bold text-xl">
-                🚨
+            <div class="w-10 h-10 rounded-xl {% if overdue_keys_count > 0 %}bg-red-100 text-red-600{% else %}bg-slate-100 text-slate-500{% endif %} flex items-center justify-center font-bold text-sm">
+                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
             </div>
         </div>
     </div>
 
     <!-- Barra de Controle & Filtros -->
-    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
         <!-- Navegação da Semana -->
         <div class="flex items-center gap-2">
             <a href="?week_offset={{ prev_week_offset }}{% if selected_agent %}&agent={{ selected_agent }}{% endif %}" 
@@ -111,10 +115,10 @@
                 <i data-lucide="chevron-left" class="w-4 h-4"></i> Semana Anterior
             </a>
 
-            <div class="px-4 py-2 bg-purple-50 text-purple-900 border border-purple-200 rounded-xl text-xs font-extrabold text-center">
+            <div class="px-4 py-2 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold text-center">
                 {{ week_start|date:"d/m" }} até {{ week_end|date:"d/m/Y" }}
                 {% if week_offset == 0 %}
-                <span class="ml-2 px-1.5 py-0.5 bg-purple-600 text-white rounded-md text-[10px] uppercase tracking-wide">Semana Atual</span>
+                <span class="ml-2 px-1.5 py-0.5 bg-[#01125B] text-white rounded-md text-[10px] uppercase tracking-wide">Semana Atual</span>
                 {% endif %}
             </div>
 
@@ -129,7 +133,7 @@
             <form method="GET" class="flex items-center gap-2 flex-1 md:flex-initial">
                 <input type="hidden" name="week_offset" value="{{ week_offset }}">
                 <select name="agent" onchange="this.form.submit()" 
-                        class="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-500">
+                        class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#01125B]">
                     <option value="">Todos os Corretores</option>
                     {% for ag in agents %}
                     <option value="{{ ag.id }}" {% if selected_agent == ag.id|stringformat:"i" %}selected{% endif %}>
@@ -140,7 +144,7 @@
             </form>
 
             <button @click="scheduleModalOpen = true"
-                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-purple-600/20 transition whitespace-nowrap">
+                    class="bg-[#01125B] hover:bg-primary-800 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition whitespace-nowrap">
                 <i data-lucide="calendar-plus" class="w-4 h-4"></i>
                 <span>Agendar Nova Visita</span>
             </button>
@@ -149,14 +153,16 @@
 
     <!-- Alerta de Chave em Atraso (se houver) -->
     {% if overdue_keys %}
-    <div class="bg-red-50 border-2 border-red-400 rounded-2xl p-4 text-red-900 shadow-md flex items-start gap-3">
-        <span class="text-2xl">🚨</span>
+    <div class="bg-red-50 border border-red-200 rounded-xl p-4 text-red-900 shadow-xs flex items-start gap-3">
+        <span class="p-1.5 rounded-lg bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        </span>
         <div class="flex-1">
-            <h4 class="font-black text-sm uppercase tracking-wide text-red-800">Atenção: Protocolo de Chaves com Devolução em Atraso</h4>
+            <h4 class="font-bold text-xs uppercase tracking-wider text-red-800">Atenção: Protocolo de Chaves com Devolução em Atraso</h4>
             <p class="text-xs text-red-700 mt-0.5">As seguintes chaves foram retiradas há mais de 4 horas ou ultrapassaram o horário limite da visita:</p>
-            <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div class="mt-2.5 grid grid-cols-1 md:grid-cols-2 gap-2">
                 {% for ov_visit in overdue_keys %}
-                <div class="bg-white/80 p-2.5 rounded-xl border border-red-200 flex items-center justify-between text-xs">
+                <div class="bg-white p-2.5 rounded-xl border border-red-200 flex items-center justify-between text-xs shadow-xs">
                     <div>
                         <span class="font-bold text-slate-900">Imóvel {{ ov_visit.visit_property.code }}</span> ({{ ov_visit.visit_property.title|truncatechars:25 }})
                         <p class="text-[11px] text-slate-600">Corretor: <strong class="text-red-700">{{ ov_visit.agent.get_full_name|default:ov_visit.agent.username }}</strong> | Retirada: {{ ov_visit.key_withdrawn_at|date:"d/m H:i" }}</p>

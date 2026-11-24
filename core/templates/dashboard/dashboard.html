@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Painel de Indicadores & BI - CRM Imobiliário{% endblock %}
+{% block title %}Painel de Indicadores & BI - ImobiCRM{% endblock %}
 
 {% block extra_head %}
 <!-- Chart.js CDN -->
@@ -9,7 +9,9 @@
 
 {% block header_title %}
 <span class="flex items-center gap-2">
-    <span class="p-2 rounded-xl bg-blue-50 text-blue-800 text-lg">📊</span>
+    <span class="p-1.5 rounded-lg bg-slate-100 text-[#01125B] flex items-center justify-center">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+    </span>
     <span>Painel de Indicadores & BI Imobiliário</span>
 </span>
 {% endblock %}
@@ -18,24 +20,24 @@
 <div class="space-y-6 max-w-7xl mx-auto">
 
     <!-- Topo: Filtros & Controle de Período -->
-    <div class="bg-white rounded-lg p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+    <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
         
         <!-- Toggle Finalidade: Todos / Vendas / Locação -->
         <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-full md:w-auto">
             <a href="?trans_type=all{% if selected_agent_id %}&agent={{ selected_agent_id }}{% endif %}" 
-               class="flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition text-center
-                      {% if trans_type_filter == 'all' %}bg-white text-blue-800 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
-                🌐 Todos os Negócios
+               class="flex-1 md:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition text-center
+                      {% if trans_type_filter == 'all' %}bg-white text-[#01125B] shadow-xs{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                Todos os Negócios
             </a>
             <a href="?trans_type=buy{% if selected_agent_id %}&agent={{ selected_agent_id }}{% endif %}" 
-               class="flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition text-center
-                      {% if trans_type_filter == 'buy' %}bg-white text-slate-800 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
-                🏷️ Apenas Vendas
+               class="flex-1 md:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition text-center
+                      {% if trans_type_filter == 'buy' %}bg-white text-[#01125B] shadow-xs{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                Vendas
             </a>
             <a href="?trans_type=rent{% if selected_agent_id %}&agent={{ selected_agent_id }}{% endif %}" 
-               class="flex-1 md:flex-initial px-4 py-2 rounded-lg text-xs font-bold transition text-center
-                      {% if trans_type_filter == 'rent' %}bg-white text-blue-700 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
-                🔑 Apenas Locação
+               class="flex-1 md:flex-initial px-3.5 py-1.5 rounded-lg text-xs font-bold transition text-center
+                      {% if trans_type_filter == 'rent' %}bg-white text-[#01125B] shadow-xs{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                Locação
             </a>
         </div>
 
@@ -46,18 +48,18 @@
                 <input type="hidden" name="trans_type" value="{{ trans_type_filter }}">
                 <label class="text-xs font-bold text-slate-500 whitespace-nowrap">Filtrar por:</label>
                 <select name="agent" onchange="this.form.submit()" 
-                        class="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="">🏢 Toda a Imobiliária (Global)</option>
+                        class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-[#01125B]">
+                    <option value="">Toda a Imobiliária (Global)</option>
                     {% for ag in agents %}
                     <option value="{{ ag.id }}" {% if selected_agent_id == ag.id|stringformat:"i" %}selected{% endif %}>
-                        👤 {{ ag.get_full_name|default:ag.username }}
+                        {{ ag.get_full_name|default:ag.username }}
                     </option>
                     {% endfor %}
                 </select>
             </form>
             {% else %}
-            <div class="bg-indigo-50 text-indigo-800 px-3 py-1.5 rounded-xl border border-indigo-200 text-xs font-bold flex items-center gap-1.5">
-                <i data-lucide="user-check" class="w-4 h-4 text-blue-700"></i>
+            <div class="bg-slate-100 text-[#01125B] px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold flex items-center gap-1.5">
+                <i data-lucide="user-check" class="w-4 h-4 text-[#01125B]"></i>
                 <span>Visão Individual do Corretor</span>
             </div>
             {% endif %}
@@ -68,53 +70,59 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <!-- KPI 1: VGV Fechado no Mês + Barra de Progresso da Meta -->
-        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">VGV Fechado (Mês)</p>
-                    <span class="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm">📈</span>
+                    <span class="w-8 h-8 rounded-xl bg-slate-100 text-[#01125B] flex items-center justify-center font-bold text-sm">
+                        <i data-lucide="trending-up" class="w-4 h-4"></i>
+                    </span>
                 </div>
-                <h3 class="text-2xl font-bold text-slate-900 mt-1">R$ {{ vgv_fechado_mes|floatformat:2 }}</h3>
-                <p class="text-[11px] text-slate-500 mt-0.5">Meta: <strong>R$ {{ meta_mensal|floatformat:0 }}</strong></p>
+                <h3 class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">R$ {{ vgv_fechado_mes|floatformat:2 }}</h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">Meta: <strong class="tabular-nums">R$ {{ meta_mensal|floatformat:0 }}</strong></p>
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100">
                 <div class="flex items-center justify-between text-xs mb-1">
                     <span class="text-slate-600 font-bold">Meta Atingida</span>
-                    <span class="font-semibold text-slate-700">{{ meta_progress_percent }}%</span>
+                    <span class="font-semibold text-slate-700 tabular-nums">{{ meta_progress_percent }}%</span>
                 </div>
                 <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                    <div class="bg-gradient-to-r bg-blue-600 h-2 rounded-full transition-all duration-500" 
+                    <div class="bg-[#01125B] h-2 rounded-full transition-all duration-500" 
                          style="width: {{ meta_progress_percent }}%"></div>
                 </div>
             </div>
         </div>
 
         <!-- KPI 2: Comissão Prevista & Realizada (6%) -->
-        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Comissão Realizada (6%)</p>
-                    <span class="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm">💼</span>
+                    <span class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold text-sm border border-emerald-100">
+                        <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                    </span>
                 </div>
-                <h3 class="text-2xl font-bold text-blue-800 mt-1">R$ {{ comissao_realizada|floatformat:2 }}</h3>
-                <p class="text-[11px] text-slate-500 mt-0.5">Em Negociação: <strong>R$ {{ comissao_prevista|floatformat:2 }}</strong></p>
+                <h3 class="text-2xl font-bold text-[#01125B] mt-1 tabular-nums">R$ {{ comissao_realizada|floatformat:2 }}</h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">Em Negociação: <strong class="tabular-nums">R$ {{ comissao_prevista|floatformat:2 }}</strong></p>
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                 <span>VGV no Funil:</span>
-                <span class="font-bold text-slate-900">R$ {{ vgv_pipeline|floatformat:2 }}</span>
+                <span class="font-bold text-slate-900 tabular-nums">R$ {{ vgv_pipeline|floatformat:2 }}</span>
             </div>
         </div>
 
         <!-- KPI 3: Ticket Médio -->
-        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Ticket Médio de Venda</p>
-                    <span class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-sm">🎯</span>
+                    <span class="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold text-sm border border-amber-100">
+                        <i data-lucide="target" class="w-4 h-4"></i>
+                    </span>
                 </div>
-                <h3 class="text-2xl font-bold text-slate-900 mt-1">
+                <h3 class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                     {% if ticket_medio > 0 %}R$ {{ ticket_medio|floatformat:2 }}{% else %}R$ 0,00{% endif %}
                 </h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">Média por imóvel negociado</p>
@@ -122,24 +130,26 @@
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                 <span>Vendas no Mês:</span>
-                <span class="font-bold text-slate-800">R$ {{ vgv_vendas_mes|floatformat:0 }}</span>
+                <span class="font-bold text-slate-800 tabular-nums">R$ {{ vgv_vendas_mes|floatformat:0 }}</span>
             </div>
         </div>
 
         <!-- KPI 4: Tempo Médio de Ciclo & Conversão -->
-        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
             <div>
                 <div class="flex items-center justify-between">
                     <p class="text-xs font-semibold uppercase text-slate-500 tracking-wider">Ciclo Médio de Venda</p>
-                    <span class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-sm">⏳</span>
+                    <span class="w-8 h-8 rounded-xl bg-slate-100 text-[#01125B] flex items-center justify-center font-bold text-sm">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
+                    </span>
                 </div>
-                <h3 class="text-2xl font-bold text-purple-700 mt-1">{{ tempo_medio_ciclo }} dias</h3>
+                <h3 class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">{{ tempo_medio_ciclo }} dias</h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">Da entrada ao fechamento</p>
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                 <span>Taxa Geral de Conversão:</span>
-                <span class="font-semibold text-purple-700">{{ taxa_conversao_geral }}%</span>
+                <span class="font-bold text-[#01125B] tabular-nums">{{ taxa_conversao_geral }}%</span>
             </div>
         </div>
 
@@ -149,11 +159,12 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <!-- Gráfico de Evolução do VGV Mensal -->
-        <div class="lg:col-span-2 bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col">
+        <div class="lg:col-span-2 bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-                        <span>📊</span> Evolução Histórica do VGV Fechado (Últimos Meses)
+                    <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="bar-chart-2" class="w-4 h-4 text-[#01125B]"></i>
+                        <span>Evolução Histórica do VGV Fechado</span>
                     </h3>
                     <p class="text-xs text-slate-500">Volume financeiro de negócios fechados mês a mês</p>
                 </div>
@@ -164,10 +175,11 @@
         </div>
 
         <!-- Funil de Vendas Step-by-Step -->
-        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
             <div>
-                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-1 flex items-center gap-2">
-                    <span>🎯</span> Funil de Conversão & Gargalos
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider mb-1 flex items-center gap-2">
+                    <i data-lucide="filter" class="w-4 h-4 text-[#01125B]"></i>
+                    <span>Funil de Conversão & Gargalos</span>
                 </h3>
                 <p class="text-xs text-slate-500 mb-4">Distribuição de leads e retenção por etapa</p>
 
@@ -176,10 +188,10 @@
                     <div class="space-y-1">
                         <div class="flex items-center justify-between text-xs">
                             <span class="font-bold text-slate-700 flex items-center gap-1.5">
-                                <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ item.stage.color }}"></span>
+                                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{ item.stage.color }}"></span>
                                 {{ item.stage.name }}
                             </span>
-                            <span class="font-semibold text-slate-900">{{ item.count }} leads ({{ item.percent }}%)</span>
+                            <span class="font-semibold text-slate-900 tabular-nums">{{ item.count }} leads ({{ item.percent }}%)</span>
                         </div>
                         <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                             <div class="h-2 rounded-full transition-all duration-500" 
@@ -191,7 +203,7 @@
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100 text-center">
-                <p class="text-xs text-slate-500">Taxa de Sucesso (Ganhos vs Total): <strong class="text-slate-700">{{ taxa_conversao_geral }}%</strong></p>
+                <p class="text-xs text-slate-500">Taxa de Sucesso (Ganhos vs Total): <strong class="text-slate-800 tabular-nums">{{ taxa_conversao_geral }}%</strong></p>
             </div>
         </div>
 
@@ -201,12 +213,13 @@
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         <!-- Gráfico de Donut: Origem dos Leads -->
-        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm">
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs">
             <div class="mb-4">
-                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-                    <span>🍩</span> Origem dos Leads (Canais de Aquisição)
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="pie-chart" class="w-4 h-4 text-[#01125B]"></i>
+                    <span>Origem dos Leads (Canais de Aquisição)</span>
                 </h3>
-                <p class="text-xs text-slate-500">Quais fontes de marketing trazem mais contatos</p>
+                <p class="text-xs text-slate-500">Quais fontes de captação trazem mais contatos</p>
             </div>
             <div class="h-[260px] flex items-center justify-center">
                 <canvas id="originsChart"></canvas>
@@ -214,12 +227,13 @@
         </div>
 
         <!-- Gráfico de Barras Horizontais: Motivos de Perda -->
-        <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm">
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs">
             <div class="mb-4">
-                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-                    <span>📉</span> Principais Motivos de Perda / Arquivamento
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="alert-octagon" class="w-4 h-4 text-red-600"></i>
+                    <span>Principais Motivos de Perda / Arquivamento</span>
                 </h3>
-                <p class="text-xs text-slate-500">Identificação de gargalos operacionais e de produto</p>
+                <p class="text-xs text-slate-500">Identificação de gargalos operacionais e objeções</p>
             </div>
             <div class="h-[260px]">
                 <canvas id="lostReasonsChart"></canvas>
@@ -230,16 +244,17 @@
 
     <!-- Linha 3: Ranking e Produtividade dos Corretores (Apenas para Gestor/Admin) -->
     {% if is_manager and agents_ranking %}
-    <div class="bg-white rounded-lg p-5 border border-slate-200 shadow-sm space-y-4">
+    <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-xs space-y-4">
         <div class="flex items-center justify-between">
             <div>
-                <h3 class="text-sm font-semibold text-slate-900 uppercase tracking-wide flex items-center gap-2">
-                    <span>🏆</span> Ranking & Produtividade da Equipe de Vendas
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                    <i data-lucide="award" class="w-4 h-4 text-[#01125B]"></i>
+                    <span>Ranking & Produtividade da Equipe de Vendas</span>
                 </h3>
                 <p class="text-xs text-slate-500">Desempenho comparativo, visitas realizadas e cumprimento de metas</p>
             </div>
-            <span class="text-xs bg-amber-100 text-amber-900 px-3 py-1 rounded-full font-semibold flex items-center gap-1">
-                👑 Painel Exclusivo de Gestão
+            <span class="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-bold flex items-center gap-1 border border-slate-200">
+                <i data-lucide="shield" class="w-3.5 h-3.5 text-[#01125B]"></i> Painel de Gestão
             </span>
         </div>
 
@@ -257,12 +272,12 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {% for item in agents_ranking %}
-                    <tr class="hover:bg-slate-50 transition">
+                    <tr class="hover:bg-slate-50/70 transition">
                         <td class="py-3 px-4 flex items-center gap-3">
                             <span class="w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs
-                                         {% if forloop.counter == 1 %}bg-amber-400 text-slate-950 shadow-sm
+                                         {% if forloop.counter == 1 %}bg-[#01125B] text-white shadow-xs
                                          {% elif forloop.counter == 2 %}bg-slate-300 text-slate-800
-                                         {% elif forloop.counter == 3 %}bg-amber-700 text-white
+                                         {% elif forloop.counter == 3 %}bg-amber-100 text-amber-800 border border-amber-200
                                          {% else %}bg-slate-100 text-slate-600{% endif %}">
                                 {{ forloop.counter }}
                             </span>
@@ -271,22 +286,22 @@
                                 <span class="text-[10px] text-slate-400 block">{{ item.agent.email|default:"Sem email" }}</span>
                             </div>
                         </td>
-                        <td class="py-3 px-4 text-center font-bold text-slate-700">{{ item.active_leads }}</td>
-                        <td class="py-3 px-4 text-center font-bold text-purple-700">🏠 {{ item.visits_month }}</td>
-                        <td class="py-3 px-4 text-right font-bold text-slate-700 text-sm">
+                        <td class="py-3 px-4 text-center font-bold text-slate-700 tabular-nums">{{ item.active_leads }}</td>
+                        <td class="py-3 px-4 text-center font-bold text-slate-800 tabular-nums">{{ item.visits_month }}</td>
+                        <td class="py-3 px-4 text-right font-bold text-slate-900 text-xs tabular-nums">
                             R$ {{ item.vgv_won|floatformat:2 }}
                         </td>
-                        <td class="py-3 px-4 text-center font-bold text-slate-800">
+                        <td class="py-3 px-4 text-center font-bold text-slate-800 tabular-nums">
                             {{ item.conversion_rate }}%
                         </td>
                         <td class="py-3 px-4">
                             <div class="space-y-1">
                                 <div class="flex items-center justify-between text-[11px]">
-                                    <span class="text-slate-500 font-semibold">{{ item.goal_percent }}%</span>
-                                    <span class="text-slate-400">R$ {{ item.goal|floatformat:0 }}</span>
+                                    <span class="text-slate-500 font-semibold tabular-nums">{{ item.goal_percent }}%</span>
+                                    <span class="text-slate-400 tabular-nums">R$ {{ item.goal|floatformat:0 }}</span>
                                 </div>
                                 <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                                    <div class="bg-indigo-600 h-1.5 rounded-full" style="width: {{ item.goal_percent }}%"></div>
+                                    <div class="bg-[#01125B] h-1.5 rounded-full" style="width: {{ item.goal_percent }}%"></div>
                                 </div>
                             </div>
                         </td>
@@ -315,8 +330,8 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets: [{
                 label: 'VGV Fechado (R$)',
                 data: vgvData,
-                backgroundColor: 'rgba(99, 102, 241, 0.85)',
-                borderColor: '#4f46e5',
+                backgroundColor: 'rgba(1, 18, 91, 0.85)',
+                borderColor: '#01125B',
                 borderWidth: 1.5,
                 borderRadius: 8,
                 maxBarThickness: 45
@@ -346,7 +361,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             return 'R$ ' + value;
                         }
                     },
-                    grid: { color: '#f1f5f9' }
+                    grid: { color: '#F1F5F9' }
                 },
                 x: {
                     grid: { display: false }
@@ -367,11 +382,11 @@ document.addEventListener('DOMContentLoaded', function() {
             datasets: [{
                 data: originsData,
                 backgroundColor: [
-                    '#6366f1', '#10b981', '#f59e0b', '#ec4899', 
-                    '#3b82f6', '#8b5cf6', '#14b8a6', '#64748b'
+                    '#01125B', '#1E3A8A', '#3B82F6', '#64748B', 
+                    '#0D9488', '#059669', '#D97706', '#475569'
                 ],
                 borderWidth: 2,
-                borderColor: '#ffffff'
+                borderColor: '#FFFFFF'
             }]
         },
         options: {
@@ -400,7 +415,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 label: 'Perdas',
                 data: lostData,
                 backgroundColor: 'rgba(239, 68, 68, 0.75)',
-                borderColor: '#dc2626',
+                borderColor: '#DC2626',
                 borderWidth: 1,
                 borderRadius: 6
             }]
@@ -416,7 +431,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 x: {
                     beginAtZero: true,
                     ticks: { precision: 0 },
-                    grid: { color: '#f1f5f9' }
+                    grid: { color: '#F1F5F9' }
                 },
                 y: {
                     grid: { display: false }
