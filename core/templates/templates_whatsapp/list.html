@@ -10,7 +10,96 @@
 {% endblock %}
 
 {% block content %}
-<div class="space-y-6 max-w-6xl mx-auto" x-data="{ templateModal: false, editMode: false, currentId: null, currentTitle: '', currentCategory: 'welcome', currentContent: '', currentActive: true, selectedContactId: null, selectedContactName: '', selectedContactPhone: '', selectedPropertyId: null, selectedPropertyTitle: '', selectedPropertyNeighborhood: '', selectedPropertyValue: '', sendWhatsApp(content) { let msg = content; if (this.selectedContactName) { msg = msg.replace(/\{nome\}/gi, this.selectedContactName).replace(/\{cliente\}/gi, this.selectedContactName).replace(/\{nome_cliente\}/gi, this.selectedContactName); } if (this.selectedPropertyTitle) { msg = msg.replace(/\{imovel\}/gi, this.selectedPropertyTitle).replace(/\{titulo\}/gi, this.selectedPropertyTitle); } if (this.selectedPropertyNeighborhood) { msg = msg.replace(/\{bairro\}/gi, this.selectedPropertyNeighborhood); } if (this.selectedPropertyValue) { msg = msg.replace(/\{valor\}/gi, this.selectedPropertyValue); } msg = msg.replace(/\{corretor\}/gi, '{{ request.user.first_name|default:"Corretor" }}'); let phone = ''; if (this.selectedContactPhone) { let digits = this.selectedContactPhone.replace(/\D/g, ''); if (digits.length === 10 || digits.length === 11) { digits = '55' + digits; } phone = digits; } const base = phone ? `https://wa.me/${phone}` : 'https://wa.me/'; const url = `${base}?text=` + encodeURIComponent(msg); window.open(url, '_blank'); }, copyMessage(content) { let msg = content; if (this.selectedContactName) { msg = msg.replace(/\{nome\}/gi, this.selectedContactName).replace(/\{cliente\}/gi, this.selectedContactName).replace(/\{nome_cliente\}/gi, this.selectedContactName); } if (this.selectedPropertyTitle) { msg = msg.replace(/\{imovel\}/gi, this.selectedPropertyTitle).replace(/\{titulo\}/gi, this.selectedPropertyTitle); } if (this.selectedPropertyNeighborhood) { msg = msg.replace(/\{bairro\}/gi, this.selectedPropertyNeighborhood); } if (this.selectedPropertyValue) { msg = msg.replace(/\{valor\}/gi, this.selectedPropertyValue); } msg = msg.replace(/\{corretor\}/gi, '{{ request.user.first_name|default:"Corretor" }}'); navigator.clipboard.writeText(msg).then(()=>{ alert('Mensagem copiada para a área de transferência'); }); } }">
+<div class="space-y-6 max-w-6xl mx-auto" x-data="{
+    templateModal: false,
+    editMode: false,
+    currentId: null,
+    currentTitle: '',
+    currentCategory: 'welcome',
+    currentContent: '',
+    currentActive: true,
+    selectedContactId: '',
+    selectedContactName: '',
+    selectedContactPhone: '',
+    selectedPropertyId: '',
+    selectedPropertyTitle: '',
+    selectedPropertyNeighborhood: '',
+    selectedPropertyValue: '',
+    onContactChange(event) {
+        const opt = event.target.selectedOptions[0];
+        if (opt && opt.value) {
+            this.selectedContactName = opt.dataset.name || '';
+            this.selectedContactPhone = opt.dataset.phone || '';
+        } else {
+            this.selectedContactName = '';
+            this.selectedContactPhone = '';
+        }
+    },
+    onPropertyChange(event) {
+        const opt = event.target.selectedOptions[0];
+        if (opt && opt.value) {
+            this.selectedPropertyTitle = opt.dataset.title || '';
+            this.selectedPropertyNeighborhood = opt.dataset.neighborhood || '';
+            this.selectedPropertyValue = opt.dataset.value || '';
+        } else {
+            this.selectedPropertyTitle = '';
+            this.selectedPropertyNeighborhood = '';
+            this.selectedPropertyValue = '';
+        }
+    },
+    getFormattedMessage(content) {
+        let msg = content || '';
+        const corretor = '{{ request.user.get_full_name|default:request.user.username|escapejs }}';
+        if (this.selectedContactName) {
+            msg = msg.replace(/\{nome\}/gi, this.selectedContactName)
+                     .replace(/\{cliente\}/gi, this.selectedContactName)
+                     .replace(/\{nome_cliente\}/gi, this.selectedContactName)
+                     .replace(/\{primeiro_nome\}/gi, this.selectedContactName.split(' ')[0]);
+        }
+        if (this.selectedPropertyTitle) {
+            msg = msg.replace(/\{imovel\}/gi, this.selectedPropertyTitle)
+                     .replace(/\{titulo\}/gi, this.selectedPropertyTitle)
+                     .replace(/\{titulo_imovel\}/gi, this.selectedPropertyTitle)
+                     .replace(/\{codigo_imovel\}/gi, this.selectedPropertyTitle);
+        }
+        if (this.selectedPropertyNeighborhood) {
+            msg = msg.replace(/\{bairro\}/gi, this.selectedPropertyNeighborhood);
+        }
+        if (this.selectedPropertyValue) {
+            msg = msg.replace(/\{valor\}/gi, this.selectedPropertyValue);
+        }
+        msg = msg.replace(/\{corretor\}/gi, corretor)
+                 .replace(/\{nome_corretor\}/gi, corretor);
+        return msg;
+    },
+    sendWhatsApp(content) {
+        const msg = this.getFormattedMessage(content);
+        let phone = '';
+        if (this.selectedContactPhone) {
+            let digits = this.selectedContactPhone.replace(/\D/g, '');
+            if (digits.length === 10 || digits.length === 11) {
+                digits = '55' + digits;
+            }
+            phone = digits;
+        }
+        const url = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+        window.open(url, '_blank');
+    },
+    copyMessage(content) {
+        const msg = this.getFormattedMessage(content);
+        navigator.clipboard.writeText(msg).then(() => {
+            alert('Mensagem copiada para a área de transferência!');
+        }).catch(() => {
+            const textarea = document.createElement('textarea');
+            textarea.value = msg;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            alert('Mensagem copiada para a área de transferência!');
+        });
+    }
+}">
 
     <!-- Topo: Descrição & Botão Novo Modelo -->
     <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
@@ -24,6 +113,41 @@
             <i data-lucide="plus-circle" class="w-4 h-4"></i>
             <span>Novo Modelo de Mensagem</span>
         </button>
+    </div>
+
+    <!-- Barra de Disparo Rápido / Personalização -->
+    <div class="bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 rounded-2xl p-4 border border-emerald-200 shadow-sm">
+        <div class="flex items-center gap-2 mb-3">
+            <span class="p-1.5 rounded-lg bg-emerald-600 text-white text-xs">⚡</span>
+            <div>
+                <h4 class="text-xs font-bold text-slate-800">Disparo Rápido e Personalização</h4>
+                <p class="text-[11px] text-slate-500">Selecione o cliente e o imóvel para personalizar automaticamente as mensagens antes de encaminhar ou copiar.</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Cliente / Contato:</label>
+                <select x-model="selectedContactId" @change="onContactChange($event)"
+                        class="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-sm">
+                    <option value="">Nenhum contato selecionado (abrirá direto no WhatsApp)</option>
+                    {% for c in contacts %}
+                    <option value="{{ c.id }}" data-name="{{ c.name }}" data-phone="{{ c.phone }}">{{ c.name }} - {{ c.phone }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold text-slate-700 mb-1">Imóvel (Opcional):</label>
+                <select x-model="selectedPropertyId" @change="onPropertyChange($event)"
+                        class="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition shadow-sm">
+                    <option value="">Nenhum imóvel selecionado</option>
+                    {% for p in properties %}
+                    <option value="{{ p.id }}" data-title="{{ p.code }} - {{ p.title }}" data-neighborhood="{{ p.neighborhood }}" data-value="R$ {% if p.sale_price %}{{ p.sale_price|floatformat:2 }}{% else %}{{ p.rental_price|floatformat:2 }}/mês{% endif %}">
+                        {{ p.code }} - {{ p.title }} | {{ p.neighborhood }} (R$ {% if p.sale_price %}{{ p.sale_price|floatformat:2 }}{% else %}{{ p.rental_price|floatformat:2 }}/mês{% endif %})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
     </div>
 
     <!-- Lista de Modelos Cadastrados -->
@@ -60,6 +184,24 @@
                 <span class="text-[11px] text-slate-400">Criado em {{ tpl.created_at|date:"d/m/Y" }}</span>
 
                 <div class="flex items-center gap-2">
+                    <!-- Botão Encaminhar no WhatsApp -->
+                    <button type="button"
+                            @click="sendWhatsApp(`{{ tpl.content|escapejs }}`)"
+                            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center gap-1.5 shadow-sm"
+                            title="Encaminhar modelo personalizado no WhatsApp">
+                        <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
+                        <span>Encaminhar no WhatsApp</span>
+                    </button>
+
+                    <!-- Botão Copiar Texto -->
+                    <button type="button"
+                            @click="copyMessage(`{{ tpl.content|escapejs }}`)"
+                            class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition flex items-center gap-1"
+                            title="Copiar mensagem personalizada">
+                        <i data-lucide="copy" class="w-3 h-3"></i>
+                        <span>Copiar</span>
+                    </button>
+
                     <!-- Botão Editar -->
                     <button type="button" 
                             @click="editMode = true; currentId = '{{ tpl.id }}'; currentTitle = '{{ tpl.title|escapejs }}'; currentCategory = '{{ tpl.category }}'; currentContent = `{{ tpl.content|escapejs }}`; currentActive = {% if tpl.is_active %}true{% else %}false{% endif %}; templateModal = true"
