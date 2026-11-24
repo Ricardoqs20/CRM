@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="pt-br" class="h-full bg-[#f0f2f5]">
 <head>
@@ -130,9 +131,7 @@
         <!-- Logo -->
         <div class="h-14 flex items-center justify-between px-3 border-b border-slate-200 bg-white safe-top">
             <a href="{% url 'kanban' %}" class="flex items-center gap-2.5 overflow-hidden" @click="closeMobile()">
-                <div class="w-9 h-9 rounded-lg bg-primary-900 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                    IC
-                </div>
+                <img src="{% static 'img/logo-imobicrm.png' %}" alt="ImobiCRM" class="w-9 h-9 rounded-lg object-cover flex-shrink-0">
                 <div x-show="isDesktop ? sidebarOpen : true" class="flex flex-col">
                     <span class="font-semibold text-slate-800 text-sm tracking-tight leading-none">Imobi<span class="text-primary-700">CRM</span></span>
                     <span class="text-[10px] text-slate-400 mt-0.5">Gestão Imobiliária</span>
