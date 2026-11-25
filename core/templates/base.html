@@ -73,8 +73,8 @@
         ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
 
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
-        .safe-top { padding-top: env(safe-area-inset-top, 0); }
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+        .safe-top { padding-top: env(safe-area-inset-top, 0px); }
         body.menu-open { overflow: hidden; }
 
         .tabular-nums { font-variant-numeric: tabular-nums; }
@@ -84,11 +84,16 @@
                 position: fixed;
                 top: 0; left: 0; bottom: 0;
                 height: 100%;
+                padding-top: env(safe-area-inset-top, 0px);
                 transform: translateX(-100%);
                 transition: transform 0.25s ease-in-out;
             }
             .sidebar-mobile.sidebar-visible {
                 transform: translateX(0);
+            }
+            .main-pwa-safe {
+                padding-top: calc(3.5rem + env(safe-area-inset-top, 0px) + 1rem);
+                padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
             }
         }
     </style>
@@ -120,26 +125,28 @@
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"></div>
 
-    <!-- Header Fixo Mobile (< 768px) -->
-    <header class="md:hidden h-14 bg-[#01125B] text-white px-4 flex items-center justify-between flex-shrink-0 z-40 safe-top border-b border-white/10">
-        <div class="flex items-center gap-3">
-            <button type="button" @click="mobileMenuOpen = true"
-                    class="p-2 -ml-1.5 rounded-lg text-white/90 hover:bg-white/10 transition"
-                    aria-label="Abrir Menu">
-                <i data-lucide="menu" class="w-5 h-5"></i>
-            </button>
-            <a href="{% url 'kanban' %}" class="flex items-center gap-2">
-                <img src="{% static 'img/logo-imobicrm.png' %}" alt="ImobiCRM" class="w-8 h-8 rounded-lg object-contain bg-[#01125B] shrink-0 border border-white/10">
-                <span class="font-bold text-white text-base tracking-tight">Imobi<span class="text-blue-300">CRM</span></span>
-            </a>
-        </div>
+    <!-- Header Fixo Mobile (< 768px) com Safe Area iOS -->
+    <header class="md:hidden fixed top-0 left-0 right-0 bg-[#01125B] text-white z-40 border-b border-white/10" style="padding-top: env(safe-area-inset-top, 0px);">
+        <div class="h-14 px-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <button type="button" @click="mobileMenuOpen = true"
+                        class="p-2 -ml-1.5 rounded-lg text-white/90 hover:bg-white/10 transition"
+                        aria-label="Abrir Menu">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <a href="{% url 'kanban' %}" class="flex items-center gap-2">
+                    <img src="{% static 'img/logo-imobicrm.png' %}" alt="ImobiCRM" class="w-8 h-8 rounded-lg object-contain bg-[#01125B] shrink-0 border border-white/10">
+                    <span class="font-bold text-white text-base tracking-tight">Imobi<span class="text-blue-300">CRM</span></span>
+                </a>
+            </div>
 
-        <div class="flex items-center gap-2">
-            <a href="{% url 'property_create' %}" 
-               class="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition border border-white/10 flex items-center justify-center"
-               title="Cadastrar Novo Imóvel">
-                <i data-lucide="plus" class="w-4 h-4"></i>
-            </a>
+            <div class="flex items-center gap-2">
+                <a href="{% url 'property_create' %}" 
+                   class="bg-white/15 hover:bg-white/25 text-white p-2 rounded-lg transition border border-white/10 flex items-center justify-center"
+                   title="Cadastrar Novo Imóvel">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                </a>
+            </div>
         </div>
     </header>
 
@@ -151,7 +158,7 @@
            ]">
         
         <!-- Topo da Sidebar: Logo & Fechar (mobile) -->
-        <div class="h-16 flex items-center justify-between px-4 border-b border-white/10 bg-[#01125B] safe-top">
+        <div class="h-16 flex items-center justify-between px-4 border-b border-white/10 bg-[#01125B] shrink-0">
             <a href="{% url 'kanban' %}" class="flex items-center gap-3 overflow-hidden" @click="closeMobile()">
                 <img src="{% static 'img/logo-imobicrm.png' %}" alt="ImobiCRM" class="w-9 h-9 rounded-lg object-contain bg-[#01125B] shrink-0 border border-white/10">
                 <div class="flex flex-col">
@@ -323,47 +330,48 @@
             </div>
         </header>
 
-        {% if messages %}
-        <div class="px-4 sm:px-6 pt-3 space-y-2 flex-shrink-0">
-            {% for message in messages %}
-            <div class="px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between border shadow-xs
-                        {% if message.tags == 'success' %}bg-emerald-50 text-emerald-800 border-emerald-200
-                        {% elif message.tags == 'error' %}bg-red-50 text-red-800 border-red-200
-                        {% else %}bg-slate-50 text-slate-800 border-slate-200{% endif %}">
-                <span>{{ message }}</span>
+        <!-- Conteúdo com safe-area para header fixo e bottom nav no mobile -->
+        <main class="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 md:p-6 main-pwa-safe">
+            {% if messages %}
+            <div class="mb-4 space-y-2">
+                {% for message in messages %}
+                <div class="px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between border shadow-xs
+                            {% if message.tags == 'success' %}bg-emerald-50 text-emerald-800 border-emerald-200
+                            {% elif message.tags == 'error' %}bg-red-50 text-red-800 border-red-200
+                            {% else %}bg-slate-50 text-slate-800 border-slate-200{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <!-- Conteúdo com pb-20 no mobile para não sobrepor com a bottom nav -->
-        <main class="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 md:p-6 pb-24 md:pb-6 safe-bottom">
+            {% endif %}
             {% block content %}{% endblock %}
         </main>
     </div>
 
-    <!-- Barra de Navegação Inferior Fixa Mobile (< 768px) -->
-    <nav class="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 flex items-center justify-around z-40 px-2 safe-bottom shadow-lg">
-        <a href="{% url 'dashboard' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if 'dashboard' in request.path %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
-            <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-            <span class="text-[10px] mt-0.5">Dashboard</span>
-        </a>
-        <a href="{% url 'kanban' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if request.resolver_match.url_name == 'kanban' %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
-            <i data-lucide="kanban" class="w-5 h-5"></i>
-            <span class="text-[10px] mt-0.5">Funil</span>
-        </a>
-        <a href="{% url 'property_list' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if 'properties' in request.path %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
-            <i data-lucide="building-2" class="w-5 h-5"></i>
-            <span class="text-[10px] mt-0.5">Imóveis</span>
-        </a>
-        <a href="{% url 'visit_schedule' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if 'visits' in request.path %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
-            <i data-lucide="calendar" class="w-5 h-5"></i>
-            <span class="text-[10px] mt-0.5">Visitas</span>
-        </a>
-        <a href="{% url 'whatsapp_template_list' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if 'templates' in request.path %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
-            <i data-lucide="message-square" class="w-5 h-5"></i>
-            <span class="text-[10px] mt-0.5">Templates</span>
-        </a>
+    <!-- Barra de Navegação Inferior Fixa Mobile (< 768px) com Safe Area iOS -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 shadow-lg" style="padding-bottom: env(safe-area-inset-bottom, 0px);">
+        <div class="h-16 flex items-center justify-around px-2">
+            <a href="{% url 'dashboard' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if 'dashboard' in request.path %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                <span class="text-[10px] mt-0.5">Dashboard</span>
+            </a>
+            <a href="{% url 'kanban' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if request.resolver_match.url_name == 'kanban' %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
+                <i data-lucide="kanban" class="w-5 h-5"></i>
+                <span class="text-[10px] mt-0.5">Funil</span>
+            </a>
+            <a href="{% url 'property_list' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if 'properties' in request.path %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
+                <i data-lucide="building-2" class="w-5 h-5"></i>
+                <span class="text-[10px] mt-0.5">Imóveis</span>
+            </a>
+            <a href="{% url 'visit_schedule' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if 'visits' in request.path %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
+                <i data-lucide="calendar" class="w-5 h-5"></i>
+                <span class="text-[10px] mt-0.5">Visitas</span>
+            </a>
+            <a href="{% url 'whatsapp_template_list' %}" class="flex flex-col items-center justify-center flex-1 py-1 text-center transition {% if 'templates' in request.path %}text-[#01125B] font-bold{% else %}text-slate-500 font-medium hover:text-slate-800{% endif %}">
+                <i data-lucide="message-square" class="w-5 h-5"></i>
+                <span class="text-[10px] mt-0.5">Templates</span>
+            </a>
+        </div>
     </nav>
 
     <!-- Modal Captação Rápida -->

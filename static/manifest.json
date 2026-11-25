@@ -4,8 +4,8 @@
   "description": "CRM Imobiliário completo: funil, imóveis, visitas e follow-up",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#01125b",
-  "theme_color": "#01125b",
+  "background_color": "#01125B",
+  "theme_color": "#01125B",
   "orientation": "any",
   "lang": "pt-BR",
   "icons": [
