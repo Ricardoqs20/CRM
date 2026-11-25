@@ -264,7 +264,7 @@
         </nav>
 
         <!-- Rodapé da Sidebar: Usuário Logado -->
-        <div class="p-3 border-t border-white/10 bg-[#000D47]/70 safe-bottom" x-data="{ menuOpen: false }">
+        <div class="p-4 border-t border-white/10 bg-[#000D47]/70" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));" x-data="{ menuOpen: false }">
             {% if request.user.is_authenticated %}
             <div class="relative">
                 <button type="button" @click="menuOpen = !menuOpen"
