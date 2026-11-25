@@ -5,6 +5,7 @@ from .leads import Pipeline, Stage, PropertyLead
 from .activities import Activity, InteractionLog
 from .visits import PropertyVisit
 from .integrations import WhatsAppTemplate, CalendarIntegration
+from .security import SecurityAuditLog
 
 __all__ = [
     'UserProfile',
@@ -21,4 +22,5 @@ __all__ = [
     'PropertyVisit',
     'WhatsAppTemplate',
     'CalendarIntegration',
+    'SecurityAuditLog',
 ]

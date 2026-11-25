@@ -7,6 +7,7 @@ from core.views import (
     PersonViewSet, StageViewSet, PropertyLeadViewSet, PropertyViewSet,
     kanban_view, lead_detail_drawer_view, lead_add_note_view,
     lead_move_stage_view, lead_quick_create_view, lead_toggle_property_link,
+    lead_anonymize_lgpd_view,
     property_list_view, property_detail_view,
     property_create_view, property_edit_view, property_quick_create_view,
     visit_schedule_view, visit_schedule_create_view, visit_create_from_lead_view,
@@ -18,7 +19,8 @@ from core.views import (
     whatsapp_template_list_view, whatsapp_template_save_view,
     whatsapp_template_delete_view, lead_template_message_view,
     contact_list_view, contact_create_view, contact_edit_view, contact_detail_view,
-    client_preferences_save_view,
+    client_preferences_save_view, contact_anonymize_lgpd_view, contact_export_lgpd_view,
+    privacy_policy_view,
     crm_login_view, crm_logout_view, google_login_start, google_login_callback,
     google_calendar_connect_view, google_calendar_callback_view,
     google_calendar_sync_now_view, visit_ical_feed_view
@@ -31,11 +33,12 @@ router.register(r'leads', PropertyLeadViewSet)
 router.register(r'properties', PropertyViewSet)
 
 urlpatterns = [
-    # Autenticação frontend
+    # Autenticação frontend & Privacidade (LGPD)
     path('login/', crm_login_view, name='crm_login'),
     path('logout/', crm_logout_view, name='crm_logout'),
     path('login/google/', google_login_start, name='google_login'),
     path('login/google/callback/', google_login_callback, name='google_callback'),
+    path('privacidade/', privacy_policy_view, name='privacy_policy'),
 
     # Dashboard BI & Indicadores
     path('dashboard/', dashboard_view, name='dashboard'),
@@ -46,9 +49,10 @@ urlpatterns = [
     path('leads/<int:pk>/drawer/', lead_detail_drawer_view, name='lead_detail_drawer'),
     path('leads/<int:pk>/add_note/', lead_add_note_view, name='lead_add_note'),
     path('leads/<int:pk>/move_stage/', lead_move_stage_view, name='lead_move_stage'),
+    path('leads/<int:pk>/anonimizar/', lead_anonymize_lgpd_view, name='lead_anonymize_lgpd'),
     path('leads/<int:lead_id>/toggle_property/<int:property_id>/', lead_toggle_property_link, name='lead_toggle_property_link'),
     path('leads/<int:lead_id>/template/<int:template_id>/', lead_template_message_view, name='lead_template_message'),
-    
+
     # Módulo de Imóveis & Estoque
     path('properties/', property_list_view, name='property_list'),
     path('properties/new/', property_create_view, name='property_create'),
@@ -76,13 +80,14 @@ urlpatterns = [
     path('tasks/create/', task_create_view, name='task_create'),
     path('tasks/<int:task_id>/toggle/', task_toggle_complete_view, name='task_toggle_complete'),
 
-
-    # Módulo de Contatos (Frontend)
+    # Módulo de Contatos (Frontend) & Direitos do Titular LGPD
     path('contatos/', contact_list_view, name='contact_list'),
     path('contatos/novo/', contact_create_view, name='contact_create'),
     path('contatos/<int:pk>/', contact_detail_view, name='contact_detail'),
     path('contatos/<int:pk>/editar/', contact_edit_view, name='contact_edit'),
     path('contatos/<int:person_id>/preferencias/', client_preferences_save_view, name='client_preferences_save'),
+    path('contatos/<int:pk>/anonimizar/', contact_anonymize_lgpd_view, name='contact_anonymize_lgpd'),
+    path('contatos/<int:pk>/exportar-lgpd/', contact_export_lgpd_view, name='contact_export_lgpd'),
 
     # Módulo de Templates de WhatsApp
     path('templates/', whatsapp_template_list_view, name='whatsapp_template_list'),
@@ -91,6 +96,7 @@ urlpatterns = [
 
     # Integrações Externas: Webhooks & Feed XML
     path('api/webhooks/leads/', lead_webhook_ingest_view, name='webhook_lead_ingest'),
+    path('api/webhook/leads/', lead_webhook_ingest_view, name='webhook_lead_ingest_singular'),
     path('integrations/feed-portais.xml', portal_xml_feed_view, name='portal_xml_feed'),
 
     # Admin & REST API

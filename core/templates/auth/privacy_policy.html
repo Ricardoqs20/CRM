@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Política de Privacidade e LGPD - ImobiCRM{% endblock %}
+{% block header_title %}Política de Privacidade e Proteção de Dados (LGPD){% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-4 space-y-6">
+  <!-- Cabeçalho Institucional -->
+  <div class="bg-[#01125B] text-white rounded-2xl p-6 sm:p-8 shadow-xs border border-white/10">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div class="flex items-center gap-4">
+        <img src="{% static 'img/logo-imobicrm.png' %}" alt="ImobiCRM" class="w-12 h-12 rounded-xl object-contain bg-[#01125B] border border-white/15 shrink-0">
+        <div>
+          <span class="inline-block text-[11px] font-bold uppercase tracking-wider text-blue-200">Lei nº 13.709/2018 (LGPD)</span>
+          <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight">Política de Privacidade e Governança de Dados</h1>
+        </div>
+      </div>
+      <a href="{% url 'crm_login' %}" class="inline-flex items-center gap-1.5 text-xs font-bold bg-white/15 hover:bg-white/25 text-white px-3.5 py-2 rounded-xl transition self-start sm:self-auto">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        <span>Voltar ao Acesso</span>
+      </a>
+    </div>
+    <p class="text-xs sm:text-sm text-white/80 mt-4 leading-relaxed">
+      O <strong>ImobiCRM</strong> adota controles técnicos e administrativos rigorosos para proteger a privacidade e os dados pessoais de clientes compradores, locatários, proprietários e corretores parceiros durante todo o ciclo de intermediação imobiliária.
+    </p>
+  </div>
+
+  <!-- Seções da Política -->
+  <div class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6 text-sm text-slate-700 leading-relaxed">
+
+    <section class="space-y-2">
+      <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+        <i data-lucide="target" class="w-4 h-4 text-[#01125B]"></i>
+        <span>1. Finalidade do Tratamento de Dados Pessoais</span>
+      </h2>
+      <p>
+        Os dados pessoais coletados (como nome completo, telefone/WhatsApp, endereço de e-mail, CPF/CNPJ e preferências de busca de imóveis) são tratados estritamente para as seguintes finalidades legítimas:
+      </p>
+      <ul class="list-disc pl-5 space-y-1 text-xs sm:text-sm text-slate-600">
+        <li>Atendimento comercial, qualificação de demandas e recomendação de imóveis compatíveis com o perfil do cliente;</li>
+        <li>Agendamento, confirmação e registro de visitas presenciais a imóveis e controle de segurança de chaves junto às portarias e proprietários;</li>
+        <li>Elaboração de propostas de compra, venda ou locação, análise cadastral e formalização contratual;</li>
+        <li>Cumprimento de obrigações legais e regulatórias aplicáveis à atividade de corretagem imobiliária (CRECI e prevenção à lavagem de dinheiro — COAF).</li>
+      </ul>
+    </section>
+
+    <hr class="border-slate-100">
+
+    <section class="space-y-2">
+      <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+        <i data-lucide="lock" class="w-4 h-4 text-[#01125B]"></i>
+        <span>2. Segurança da Informação e Criptografia</span>
+      </h2>
+      <p>
+        Para prevenir acessos não autorizados, vazamentos ou alterações indevidas, o ImobiCRM implementa medidas de segurança desde a concepção (<em>Privacy by Design</em>):
+      </p>
+      <ul class="list-disc pl-5 space-y-1 text-xs sm:text-sm text-slate-600">
+        <li><strong>Criptografia em Repouso:</strong> Documentos sensíveis (CPF/CNPJ) e credenciais de integração OAuth são armazenados cifrados com criptografia autenticada (Fernet / AES-128-CBC + HMAC-SHA256) e exibidos com mascaramento;</li>
+        <li><strong>Isolamento de Carteira:</strong> Corretores acessam exclusivamente os contatos, leads, visitas e atividades vinculados à sua própria carteira de atendimento;</li>
+        <li><strong>Trilha de Auditoria e Proteção de Rede:</strong> Eventos críticos de segurança são auditados com endereços IP anonimizados, tráfego sob HTTPS/HSTS e limitação automática contra ataques de força bruta.</li>
+      </ul>
+    </section>
+
+    <hr class="border-slate-100">
+
+    <section class="space-y-2">
+      <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+        <i data-lucide="user-check" class="w-4 h-4 text-[#01125B]"></i>
+        <span>3. Direitos do Titular dos Dados (Art. 18 da LGPD)</span>
+      </h2>
+      <p>
+        A qualquer momento, o titular dos dados pessoais pode solicitar gratuitamente:
+      </p>
+      <ul class="list-disc pl-5 space-y-1 text-xs sm:text-sm text-slate-600">
+        <li>Confirmação da existência de tratamento e acesso facilitado aos dados cadastrais;</li>
+        <li>Correção de dados incompletos, inexatos ou desatualizados;</li>
+        <li>Portabilidade dos dados em formato estruturado;</li>
+        <li><strong>Anonimização, bloqueio ou eliminação</strong> de dados pessoais desnecessários ou tratados mediante consentimento, preservados apenas indicadores agregados não identificáveis e obrigações legais de guarda;</li>
+        <li>Revogação do consentimento para comunicações comerciais a qualquer tempo.</li>
+      </ul>
+    </section>
+
+    <hr class="border-slate-100">
+
+    <section class="bg-slate-50 border border-slate-200 rounded-xl p-4 sm:p-5 space-y-2">
+      <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+        <i data-lucide="mail" class="w-4 h-4 text-[#01125B]"></i>
+        <span>4. Canal do Encarregado pelo Tratamento de Dados (DPO)</span>
+      </h2>
+      <p class="text-xs sm:text-sm text-slate-600">
+        Para exercer seus direitos de titular, esclarecer dúvidas sobre esta Política de Privacidade ou solicitar atualização/anonimização de cadastro, entre em contato diretamente com o Encarregado de Proteção de Dados (DPO):
+      </p>
+      <div class="pt-1 text-xs sm:text-sm font-semibold text-slate-800 space-y-1">
+        <p>E-mail do Encarregado (DPO): <a href="mailto:privacidade@imobicrm.com.br" class="text-[#01125B] underline">privacidade@imobicrm.com.br</a></p>
+        <p class="text-xs font-normal text-slate-500">Prazo de resposta às requisições de titulares: até 15 (quinze) dias corridos, nos termos do Art. 19, II da Lei nº 13.709/2018.</p>
+      </div>
+    </section>
+
+  </div>
+</div>
+{% endblock %}

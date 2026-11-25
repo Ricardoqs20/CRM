@@ -3,13 +3,14 @@ import re
 import uuid
 from django.db import models
 from django.contrib.auth.models import User
+from core.crypto import EncryptedTextField
 
 
 class CalendarIntegration(models.Model):
     """Integração de Calendário (Google Agenda OAuth2 e Feed Apple Calendar / iCal)"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='calendar_integration', verbose_name='Usuário')
-    google_access_token = models.TextField(blank=True, null=True, verbose_name='Google Access Token')
-    google_refresh_token = models.TextField(blank=True, null=True, verbose_name='Google Refresh Token')
+    google_access_token = EncryptedTextField(blank=True, null=True, verbose_name='Google Access Token')
+    google_refresh_token = EncryptedTextField(blank=True, null=True, verbose_name='Google Refresh Token')
     google_token_expiry = models.DateTimeField(blank=True, null=True, verbose_name='Expiração do Token Google')
     google_calendar_id = models.CharField(max_length=255, default='primary', verbose_name='ID do Calendário Google')
     google_connected = models.BooleanField(default=False, verbose_name='Google Agenda Conectado')
@@ -44,6 +45,10 @@ class WhatsAppTemplate(models.Model):
         verbose_name='Conteúdo da Mensagem',
         help_text='Tags disponíveis: {nome_cliente}, {primeiro_nome}, {codigo_imovel}, {titulo_imovel}, {bairro}, {valor}, {nome_corretor}, {telefone_corretor}'
     )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='whatsapp_templates', verbose_name='Criado por'
+    )
     is_active = models.BooleanField(default=True, verbose_name='Ativo')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -72,7 +77,7 @@ class WhatsAppTemplate(models.Model):
         property_code = prop.code if prop else "imóvel selecionado"
         property_title = prop.title if prop else (lead.title if lead else "")
         bairro = prop.neighborhood if prop and prop.neighborhood else (lead.preferred_location if lead and lead.preferred_location else "ótima localização")
-        
+
         # Valor
         if prop and prop.sale_price and prop.sale_price > 0:
             valor = f"R$ {prop.sale_price:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')

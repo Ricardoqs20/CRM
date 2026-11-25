@@ -1,55 +1,130 @@
+import hmac
 import json
 import random
+import re
 import secrets
 import urllib.parse
 import urllib.request
-from datetime import timedelta, datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
-from django.shortcuts import render, get_object_or_404, redirect
-from django.urls import reverse
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponse, Http404
-from django.db.models import Q, Prefetch, Sum, Count, Avg, Case, When
-from django.utils import timezone
+from xml.sax.saxutils import escape as xml_escape
+
 from django.conf import settings
-from rest_framework import viewsets, status
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
+from django.db.models import Avg, Case, Count, Prefetch, Q, Sum, When
+from django.http import (
+    Http404,
+    HttpResponse,
+    HttpResponseForbidden,
+    HttpResponseNotAllowed,
+    JsonResponse,
+)
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from .models import (
-    Person, Stage, PropertyLead, Pipeline,
-    Property, PropertyImage, Activity, InteractionLog,
-    PropertyVisit, UserProfile, WhatsAppTemplate, ClientPreference,
-    CalendarIntegration
+    Activity,
+    CalendarIntegration,
+    ClientPreference,
+    InteractionLog,
+    Person,
+    Pipeline,
+    Property,
+    PropertyImage,
+    PropertyLead,
+    PropertyVisit,
+    Stage,
+    UserProfile,
+    WhatsAppTemplate,
+)
+from .security import (
+    anonymize_person_lgpd,
+    can_access_lead,
+    can_access_person,
+    can_access_task,
+    can_access_visit,
+    can_edit_property,
+    can_edit_whatsapp_template,
+    get_safe_redirect_url,
+    is_user_manager,
+    log_security_event,
+    rate_limit,
+    safe_json_dumps,
 )
 from .serializers import (
-    PersonSerializer, StageSerializer, PropertyLeadSerializer,
-    PropertySerializer, ActivitySerializer, PropertyVisitSerializer
-)
-from .services.match_engine import (
-    get_matching_properties_for_lead,
-    get_matching_leads_for_property
+    ActivitySerializer,
+    PersonSerializer,
+    PropertyLeadSerializer,
+    PropertySerializer,
+    PropertyVisitSerializer,
+    StageSerializer,
 )
 from .services.lead_router import assign_lead_smart
-from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login, logout
+from .services.match_engine import (
+    get_matching_leads_for_property,
+    get_matching_properties_for_lead,
+)
+
 
 # ==========================================
-# REST API VIEWSETS (DRF)
+# REST API VIEWSETS (DRF) — COM ISOLAMENTO ANTI-IDOR
 # ==========================================
 
 class PersonViewSet(viewsets.ModelViewSet):
     queryset = Person.objects.all()
     serializer_class = PersonSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if is_user_manager(self.request.user):
+            return Person.objects.all()
+        return Person.objects.filter(assigned_agent=self.request.user)
+
+    def perform_create(self, serializer):
+        extra = {}
+        if not is_user_manager(self.request.user):
+            extra['assigned_agent'] = self.request.user
+        if serializer.validated_data.get('lgpd_consent', True) and not serializer.validated_data.get('lgpd_consent_at'):
+            extra['lgpd_consent_at'] = timezone.now()
+            extra['lgpd_origin'] = serializer.validated_data.get('lgpd_origin') or 'api_drf'
+        serializer.save(**extra)
+
 
 class StageViewSet(viewsets.ModelViewSet):
     queryset = Stage.objects.all()
     serializer_class = StageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if request.method not in permissions.SAFE_METHODS and not is_user_manager(request.user):
+            raise PermissionDenied('Apenas gestores podem alterar etapas do funil.')
+
 
 class PropertyLeadViewSet(viewsets.ModelViewSet):
     queryset = PropertyLead.objects.all()
     serializer_class = PropertyLeadSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if is_user_manager(self.request.user):
+            return PropertyLead.objects.all()
+        return PropertyLead.objects.filter(agent=self.request.user)
+
+    def perform_create(self, serializer):
+        if not is_user_manager(self.request.user):
+            serializer.save(agent=self.request.user)
+        else:
+            serializer.save()
 
     @action(detail=True, methods=['patch'])
     def move_stage(self, request, pk=None):
@@ -63,17 +138,27 @@ class PropertyLeadViewSet(viewsets.ModelViewSet):
         except Stage.DoesNotExist:
             return Response({'error': 'Estágio não encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
+
 class PropertyViewSet(viewsets.ModelViewSet):
     queryset = Property.objects.all()
     serializer_class = PropertySerializer
+    permission_classes = [permissions.IsAuthenticated]
 
+    def perform_create(self, serializer):
+        if not is_user_manager(self.request.user):
+            serializer.save(captured_by=self.request.user)
+        else:
+            serializer.save()
 
-# ==========================================
-# PERMISSÕES & ISOLAMENTO POR CORRETOR
-# ==========================================
+    def perform_update(self, serializer):
+        if not can_edit_property(self.request.user, serializer.instance):
+            raise PermissionDenied('Você só pode editar imóveis captados por sua carteira.')
+        serializer.save()
 
-def is_user_manager(user):
-    return user.is_authenticated and (user.is_superuser or UserProfile.objects.filter(user=user, role='manager').exists())
+    def perform_destroy(self, instance):
+        if not can_edit_property(self.request.user, instance):
+            raise PermissionDenied('Você só pode excluir imóveis captados por sua carteira.')
+        instance.delete()
 
 
 # ==========================================
@@ -81,11 +166,12 @@ def is_user_manager(user):
 # ==========================================
 
 @login_required(login_url='crm_login')
+@rate_limit('search_kanban', 30, 60, scope='user_or_ip')
 def kanban_view(request):
     """View do Funil Kanban com Filtros Reativos HTMX"""
     user_is_mgr = is_user_manager(request.user)
     pipeline = Pipeline.objects.filter(is_default=True).first() or Pipeline.objects.first()
-    
+
     q = request.GET.get('q', '').strip()
     agent_id = request.GET.get('agent_id', '').strip()
     transaction_type = request.GET.get('transaction_type', '').strip()
@@ -132,7 +218,7 @@ def lead_detail_drawer_view(request, pk):
     lead = get_object_or_404(
         PropertyLead.objects.select_related('client', 'client__preferences', 'stage', 'agent', 'pipeline')
                             .prefetch_related(
-                                'interested_properties', 
+                                'interested_properties',
                                 'interactions__user',
                                 'visits__visit_property',
                                 'visits__agent',
@@ -142,14 +228,24 @@ def lead_detail_drawer_view(request, pk):
         pk=pk
     )
 
-    if not is_user_manager(request.user):
-        if lead.agent and lead.agent != request.user:
-            raise Http404("Você não tem permissão para visualizar este lead.")
+    user_is_mgr = is_user_manager(request.user)
+    if not can_access_lead(request.user, lead):
+        log_security_event(
+            action='unauthorized_access',
+            target=f'PropertyLead #{pk}',
+            details='Tentativa bloqueada de visualização de lead de outra carteira.',
+            request=request,
+        )
+        raise Http404("Você não tem permissão para visualizar este lead.")
 
     stages = Stage.objects.filter(pipeline=lead.pipeline).order_by('order')
     matching_properties = get_matching_properties_for_lead(lead)
     all_properties = Property.objects.filter(status__in=['available', 'draft', 'reserved']).order_by('code')
-    active_templates = WhatsAppTemplate.objects.filter(is_active=True).order_by('category', 'title')
+
+    tpl_qs = WhatsAppTemplate.objects.filter(is_active=True)
+    if not user_is_mgr:
+        tpl_qs = tpl_qs.filter(Q(created_by__isnull=True) | Q(created_by=request.user))
+    active_templates = tpl_qs.order_by('category', 'title')
 
     return render(request, 'kanban/partials/lead_drawer.html', {
         'lead': lead,
@@ -157,6 +253,7 @@ def lead_detail_drawer_view(request, pk):
         'matching_properties': matching_properties,
         'all_properties': all_properties,
         'active_templates': active_templates,
+        'is_manager': user_is_mgr,
     })
 
 
@@ -164,6 +261,9 @@ def lead_detail_drawer_view(request, pk):
 def lead_toggle_property_link(request, lead_id, property_id):
     """Vincula ou desvincula um imóvel do lead a partir da seção de Match"""
     lead = get_object_or_404(PropertyLead, pk=lead_id)
+    if not can_access_lead(request.user, lead):
+        raise Http404("Lead não encontrado na sua carteira.")
+
     prop = get_object_or_404(Property, pk=property_id)
 
     if prop in lead.interested_properties.all():
@@ -175,7 +275,7 @@ def lead_toggle_property_link(request, lead_id, property_id):
 
     InteractionLog.objects.create(
         lead=lead,
-        user=request.user if request.user.is_authenticated else None,
+        user=request.user,
         action_type='note',
         content=action_msg
     )
@@ -191,6 +291,8 @@ def lead_toggle_property_link(request, lead_id, property_id):
 def lead_add_note_view(request, pk):
     """Adiciona uma nova anotação/interação na timeline do lead e atualiza a última interação"""
     lead = get_object_or_404(PropertyLead, pk=pk)
+    if not can_access_lead(request.user, lead):
+        raise Http404("Lead não encontrado na sua carteira.")
 
     if request.method == 'POST':
         action_type = request.POST.get('action_type', 'note')
@@ -199,7 +301,7 @@ def lead_add_note_view(request, pk):
         if content:
             InteractionLog.objects.create(
                 lead=lead,
-                user=request.user if request.user.is_authenticated else None,
+                user=request.user,
                 action_type=action_type,
                 content=content
             )
@@ -213,6 +315,8 @@ def lead_add_note_view(request, pk):
 def lead_move_stage_view(request, pk):
     """Move o lead entre os estágios do funil, salvando motivo de perda ou sucesso"""
     lead = get_object_or_404(PropertyLead, pk=pk)
+    if not can_access_lead(request.user, lead):
+        raise Http404("Lead não encontrado na sua carteira.")
 
     if request.method == 'POST':
         try:
@@ -235,7 +339,7 @@ def lead_move_stage_view(request, pk):
                 lead.status = 'lost'
                 lead.closed_at = timezone.now()
                 if lost_reason:
-                    lead.lost_reason = lost_reason
+                    lead.lost_reason = str(lost_reason)[:255]
             else:
                 lead.status = 'open'
                 lead.closed_at = None
@@ -249,7 +353,7 @@ def lead_move_stage_view(request, pk):
 
             InteractionLog.objects.create(
                 lead=lead,
-                user=request.user if request.user.is_authenticated else None,
+                user=request.user,
                 action_type='stage_change',
                 content=log_text
             )
@@ -278,7 +382,10 @@ def lead_quick_create_view(request):
             defaults={
                 'name': client_name,
                 'client_type': 'buyer' if transaction_type == 'buy' else 'renter',
-                'assigned_agent': request.user if request.user.is_authenticated else None
+                'assigned_agent': request.user,
+                'lgpd_consent': True,
+                'lgpd_consent_at': timezone.now(),
+                'lgpd_origin': 'kanban_rapido',
             }
         )
 
@@ -294,13 +401,13 @@ def lead_quick_create_view(request):
             property_type=property_type,
             budget=budget,
             origin=origin,
-            agent=request.user if request.user.is_authenticated else None,
+            agent=request.user,
             last_contact_at=timezone.now()
         )
 
         InteractionLog.objects.create(
             lead=lead,
-            user=request.user if request.user.is_authenticated else None,
+            user=request.user,
             action_type='note',
             content=f"Lead cadastrado no sistema via {lead.get_origin_display()}."
         )
@@ -311,11 +418,33 @@ def lead_quick_create_view(request):
     return redirect('kanban')
 
 
+@login_required(login_url='crm_login')
+def lead_anonymize_lgpd_view(request, pk):
+    """Anonimiza os dados pessoais do titular vinculado ao Lead (restrito a administradores/gestores)."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    if not is_user_manager(request.user):
+        log_security_event(
+            action='unauthorized_access',
+            target=f'LGPD Anonymize Lead #{pk}',
+            details='Usuário não-administrador tentou executar anonimização LGPD.',
+            request=request,
+        )
+        return HttpResponseForbidden('Acesso restrito a administradores/gestores.')
+
+    lead = get_object_or_404(PropertyLead.objects.select_related('client'), pk=pk)
+    anonymize_person_lgpd(lead.client, actor=request.user, request=request)
+    messages.success(request, f'Titular vinculado ao negócio #{lead.id} anonimizado conforme a LGPD.')
+    return redirect('kanban')
+
+
 # ==========================================
 # VIEWS DO ESTOQUE DE IMÓVEIS
 # ==========================================
 
 @login_required(login_url='crm_login')
+@rate_limit('search_properties', 30, 60, scope='user_or_ip')
 def property_list_view(request):
     """Listagem do Estoque de Imóveis com Filtros Dinâmicos HTMX"""
     queryset = Property.objects.all().prefetch_related('images')
@@ -382,18 +511,32 @@ def property_detail_view(request, pk):
     """Ficha Completa do Imóvel com Match de Leads Interessados e Proteção de Privacidade"""
     property_obj = get_object_or_404(Property.objects.prefetch_related('images'), pk=pk)
     can_view_owner = property_obj.can_view_owner(request.user)
-    matching_leads = get_matching_leads_for_property(property_obj)
+    matching_leads = get_matching_leads_for_property(property_obj, user=request.user)
 
     return render(request, 'properties/detail.html', {
         'property': property_obj,
         'can_view_owner': can_view_owner,
+        'can_edit_property': can_edit_property(request.user, property_obj),
         'matching_leads': matching_leads,
     })
+
+
+def _get_permitted_owners_qs(user):
+    if is_user_manager(user):
+        qs = Person.objects.all()
+    else:
+        qs = Person.objects.filter(Q(assigned_agent=user) | Q(assigned_agent__isnull=True))
+    return qs.order_by(
+        Case(When(client_type='owner', then=0), default=1),
+        'name',
+    )
 
 
 @login_required(login_url='crm_login')
 def property_create_view(request):
     """Cadastro Completo de Imóvel"""
+    owners_qs = _get_permitted_owners_qs(request.user)
+
     if request.method == 'POST':
         code = request.POST.get('code')
         title = request.POST.get('title')
@@ -429,7 +572,7 @@ def property_create_view(request):
         furnished = 'furnished' in request.POST
 
         owner_id = request.POST.get('owner') or None
-        owner = Person.objects.filter(pk=owner_id).first() if owner_id else None
+        owner = owners_qs.filter(pk=owner_id).first() if owner_id else None
 
         prop = Property.objects.create(
             code=code,
@@ -464,33 +607,37 @@ def property_create_view(request):
             elevator=elevator,
             furnished=furnished,
             owner=owner,
-            captured_by=request.user if request.user.is_authenticated else None
+            captured_by=request.user,
         )
 
-        # Processar upload de fotos
         images = request.FILES.getlist('images')
-        has_featured = False
         for idx, img_file in enumerate(images):
-            is_feat = (idx == 0)
             PropertyImage.objects.create(
                 property=prop,
                 image=img_file,
-                is_featured=is_feat
+                is_featured=(idx == 0),
             )
 
         messages.success(request, f'Imóvel {prop.code} cadastrado com sucesso!')
         return redirect('property_detail', pk=prop.id)
 
-    owners = Person.objects.all().order_by(
-        Case(When(client_type='owner', then=0), default=1),
-        'name'
-    )
-    return render(request, 'properties/form.html', {'property': None, 'owners': owners})
+    return render(request, 'properties/form.html', {'property': None, 'owners': owners_qs})
 
 
+@login_required(login_url='crm_login')
 def property_edit_view(request, pk):
-    """Edição Completa de Imóvel"""
+    """Edição Completa de Imóvel (restrita ao captador ou gestor/admin)"""
     prop = get_object_or_404(Property, pk=pk)
+    if not can_edit_property(request.user, prop):
+        log_security_event(
+            action='unauthorized_access',
+            target=f'Property #{pk}',
+            details='Tentativa bloqueada de edição de imóvel pertencente a outro captador.',
+            request=request,
+        )
+        return HttpResponseForbidden('Você não tem permissão para editar este imóvel.')
+
+    owners_qs = _get_permitted_owners_qs(request.user)
 
     if request.method == 'POST':
         prop.code = request.POST.get('code')
@@ -527,22 +674,22 @@ def property_edit_view(request, pk):
         prop.furnished = 'furnished' in request.POST
 
         owner_id = request.POST.get('owner') or None
-        prop.owner = Person.objects.filter(pk=owner_id).first() if owner_id else None
+        if owner_id:
+            prop.owner = owners_qs.filter(pk=owner_id).first() or prop.owner
+        else:
+            prop.owner = None
 
         prop.save()
 
-        # 1. Tratar remoção de fotos marcadas para exclusão
         delete_images_ids = request.POST.getlist('delete_images')
         if delete_images_ids:
             prop.images.filter(id__in=delete_images_ids).delete()
 
-        # 2. Atualizar foto de capa existente
         featured_image_id = request.POST.get('featured_image')
         if featured_image_id:
             prop.images.all().update(is_featured=False)
             prop.images.filter(id=featured_image_id).update(is_featured=True)
 
-        # 3. Adicionar novas fotos enviadas
         new_images = request.FILES.getlist('images')
         has_featured = prop.images.filter(is_featured=True).exists()
         for idx, img_file in enumerate(new_images):
@@ -553,10 +700,9 @@ def property_edit_view(request, pk):
             PropertyImage.objects.create(
                 property=prop,
                 image=img_file,
-                is_featured=is_feat
+                is_featured=is_feat,
             )
 
-        # Se houver imagens cadastradas mas nenhuma como capa, definir a primeira
         if not prop.images.filter(is_featured=True).exists() and prop.images.exists():
             first_img = prop.images.first()
             first_img.is_featured = True
@@ -565,13 +711,10 @@ def property_edit_view(request, pk):
         messages.success(request, f'Imóvel {prop.code} atualizado com sucesso!')
         return redirect('property_detail', pk=prop.id)
 
-    owners = Person.objects.all().order_by(
-        Case(When(client_type='owner', then=0), default=1),
-        'name'
-    )
-    return render(request, 'properties/form.html', {'property': prop, 'owners': owners})
+    return render(request, 'properties/form.html', {'property': prop, 'owners': owners_qs})
 
 
+@login_required(login_url='crm_login')
 def property_quick_create_view(request):
     """Captação Rápida de Imóvel (30 segundos) - Salva como Rascunho"""
     if request.method == 'POST':
@@ -592,7 +735,10 @@ def property_quick_create_view(request):
                 defaults={
                     'name': owner_name or 'Proprietário a Identificar',
                     'client_type': 'owner',
-                    'assigned_agent': request.user if request.user.is_authenticated else None
+                    'assigned_agent': request.user,
+                    'lgpd_consent': True,
+                    'lgpd_consent_at': timezone.now(),
+                    'lgpd_origin': 'captacao_rapida',
                 }
             )
 
@@ -614,7 +760,7 @@ def property_quick_create_view(request):
             parking_spaces=parking_spaces,
             owner=owner,
             status='draft',
-            captured_by=request.user if request.user.is_authenticated else None
+            captured_by=request.user,
         )
 
         messages.success(request, f'⚡ Captação rápida salva como Rascunho ({prop.code})! Complete a ficha quando desejar.')
@@ -627,25 +773,30 @@ def property_quick_create_view(request):
 # FASE 5: GESTÃO DE VISITAS & CONTROLE DE CHAVES
 # ==========================================
 
+@login_required(login_url='crm_login')
 def visit_schedule_view(request):
     """Tela de Calendário Visual Semanal de Visitas com KPIs e Controle de Chaves"""
-    week_offset = int(request.GET.get('week_offset', 0))
+    user_is_mgr = is_user_manager(request.user)
+    try:
+        week_offset = int(request.GET.get('week_offset', 0))
+    except (TypeError, ValueError):
+        week_offset = 0
     selected_agent = request.GET.get('agent', '')
 
     today = timezone.now().date()
-    start_of_current_week = today - timedelta(days=today.weekday()) # Segunda-feira
+    start_of_current_week = today - timedelta(days=today.weekday())
     week_start = start_of_current_week + timedelta(weeks=week_offset)
-    week_end = week_start + timedelta(days=6) # Domingo
+    week_end = week_start + timedelta(days=6)
 
-    # Filtro base
     visits_qs = PropertyVisit.objects.filter(
         scheduled_date__date__range=[week_start, week_end]
     ).select_related('lead', 'lead__client', 'visit_property', 'agent').order_by('scheduled_date')
 
-    if selected_agent:
+    if not user_is_mgr:
+        visits_qs = visits_qs.filter(Q(agent=request.user) | Q(lead__agent=request.user))
+    elif selected_agent:
         visits_qs = visits_qs.filter(agent_id=selected_agent)
 
-    # Montagem dos 7 dias da semana
     weekday_names = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
     days_data = []
     for i in range(7):
@@ -658,18 +809,22 @@ def visit_schedule_view(request):
             'visits': day_visits
         })
 
-    # KPIs da semana
     total_visits_week = visits_qs.count()
     confirmed_visits_count = visits_qs.filter(status='confirmed').count()
-    keys_with_agent_count = PropertyVisit.objects.filter(key_status='with_agent').count()
 
-    # Chaves em atraso (>4h ou após visita)
-    all_active_visits = PropertyVisit.objects.filter(key_status='with_agent').select_related('visit_property', 'agent', 'lead__client')
-    overdue_keys = [v for v in all_active_visits if v.is_key_overdue]
+    keys_qs = PropertyVisit.objects.filter(key_status='with_agent').select_related('visit_property', 'agent', 'lead__client')
+    if not user_is_mgr:
+        keys_qs = keys_qs.filter(agent=request.user)
+
+    keys_with_agent_count = keys_qs.count()
+    overdue_keys = [v for v in keys_qs if v.is_key_overdue]
     overdue_keys_count = len(overdue_keys)
 
     agents = User.objects.filter(is_active=True).order_by('first_name', 'username')
-    active_leads = PropertyLead.objects.filter(status='open').select_related('client').order_by('-created_at')[:30]
+    leads_qs = PropertyLead.objects.filter(status='open').select_related('client')
+    if not user_is_mgr:
+        leads_qs = leads_qs.filter(agent=request.user)
+    active_leads = leads_qs.order_by('-created_at')[:30]
     available_properties = Property.objects.filter(status__in=['available', 'reserved']).order_by('code')[:30]
 
     context = {
@@ -690,17 +845,17 @@ def visit_schedule_view(request):
         'available_properties': available_properties,
     }
 
-    if request.user.is_authenticated:
-        cal_integration, _ = CalendarIntegration.objects.get_or_create(user=request.user)
-        context['calendar_integration'] = cal_integration
-        context['ical_feed_url'] = request.build_absolute_uri(
-            reverse('visit_ical_feed', kwargs={'token': cal_integration.ical_token})
-        )
-        context['webcal_feed_url'] = context['ical_feed_url'].replace('http://', 'webcal://').replace('https://', 'webcal://')
+    cal_integration, _ = CalendarIntegration.objects.get_or_create(user=request.user)
+    context['calendar_integration'] = cal_integration
+    context['ical_feed_url'] = request.build_absolute_uri(
+        reverse('visit_ical_feed', kwargs={'token': cal_integration.ical_token})
+    )
+    context['webcal_feed_url'] = context['ical_feed_url'].replace('http://', 'webcal://').replace('https://', 'webcal://')
 
     return render(request, 'visits/calendar.html', context)
 
 
+@login_required(login_url='crm_login')
 def visit_schedule_create_view(request):
     """Criação de Visita a partir do Modal do Calendário"""
     if request.method == 'POST':
@@ -712,8 +867,14 @@ def visit_schedule_create_view(request):
         key_status = request.POST.get('key_status', 'concierge')
 
         lead = get_object_or_404(PropertyLead, pk=lead_id)
+        if not can_access_lead(request.user, lead):
+            raise Http404("Lead não encontrado na sua carteira.")
+
         prop = get_object_or_404(Property, pk=property_id)
-        agent = User.objects.filter(pk=agent_id).first() or request.user if request.user.is_authenticated else None
+        if is_user_manager(request.user) and agent_id:
+            agent = User.objects.filter(pk=agent_id).first() or request.user
+        else:
+            agent = request.user
 
         scheduled_date = timezone.datetime.fromisoformat(scheduled_date_str) if scheduled_date_str else timezone.now()
         if timezone.is_naive(scheduled_date):
@@ -729,16 +890,13 @@ def visit_schedule_create_view(request):
             key_status=key_status
         )
 
-        # Se a chave já saiu com o corretor
         if key_status == 'with_agent':
             visit.key_withdrawn_at = timezone.now()
             visit.save()
 
-        # Vincula o imóvel ao lead caso não esteja
         if prop not in lead.interested_properties.all():
             lead.interested_properties.add(prop)
 
-        # Automação de Estágio: Avança para 'Visita Agendada' se o lead estiver em 'Novo Lead' ou 'Em Atendimento'
         visit_stage = Stage.objects.filter(pipeline=lead.pipeline, stage_type='open', name__icontains='Visita').first()
         if visit_stage and lead.stage != visit_stage:
             lead.stage = visit_stage
@@ -749,7 +907,7 @@ def visit_schedule_create_view(request):
 
         InteractionLog.objects.create(
             lead=lead,
-            user=request.user if request.user.is_authenticated else agent,
+            user=request.user,
             action_type='visit_scheduled',
             content=f"Visita agendada para {scheduled_date.strftime('%d/%m/%Y às %H:%M')} no imóvel [{prop.code}] ({prop.title})."
         )
@@ -760,9 +918,12 @@ def visit_schedule_create_view(request):
     return redirect('visit_schedule')
 
 
+@login_required(login_url='crm_login')
 def visit_create_from_lead_view(request, lead_id):
     """Criação de Visita a partir do Drawer do Lead com Redirecionamento Direto ao WhatsApp"""
     lead = get_object_or_404(PropertyLead, pk=lead_id)
+    if not can_access_lead(request.user, lead):
+        raise Http404("Lead não encontrado na sua carteira.")
 
     if request.method == 'POST':
         property_id = request.POST.get('property_id')
@@ -778,7 +939,7 @@ def visit_create_from_lead_view(request, lead_id):
         visit = PropertyVisit.objects.create(
             lead=lead,
             visit_property=prop,
-            agent=lead.agent or (request.user if request.user.is_authenticated else None),
+            agent=lead.agent or request.user,
             scheduled_date=scheduled_date,
             status='confirmed',
             meeting_point=meeting_point,
@@ -788,7 +949,6 @@ def visit_create_from_lead_view(request, lead_id):
         if prop not in lead.interested_properties.all():
             lead.interested_properties.add(prop)
 
-        # Automação de Estágio: Avança para 'Visita Agendada'
         visit_stage = Stage.objects.filter(pipeline=lead.pipeline, stage_type='open', name__icontains='Visita').first()
         if visit_stage and lead.stage != visit_stage:
             lead.stage = visit_stage
@@ -799,14 +959,13 @@ def visit_create_from_lead_view(request, lead_id):
 
         InteractionLog.objects.create(
             lead=lead,
-            user=request.user if request.user.is_authenticated else lead.agent,
+            user=request.user,
             action_type='visit_scheduled',
             content=f"Visita marcada para {scheduled_date.strftime('%d/%m/%Y às %H:%M')} no imóvel [{prop.code}] {prop.neighborhood}."
         )
 
         messages.success(request, f'Visita ao imóvel {prop.code} agendada com sucesso!')
-        
-        # Redireciona para o WhatsApp de confirmação caso disponível
+
         if visit.whatsapp_confirmation_url and visit.whatsapp_confirmation_url != '#':
             return redirect(visit.whatsapp_confirmation_url)
 
@@ -815,15 +974,21 @@ def visit_create_from_lead_view(request, lead_id):
     return redirect('kanban')
 
 
+@login_required(login_url='crm_login')
 def visit_feedback_form_view(request, visit_id):
     """Carrega o formulário HTMX de feedback da visita"""
     visit = get_object_or_404(PropertyVisit.objects.select_related('lead', 'lead__client', 'visit_property'), pk=visit_id)
+    if not can_access_visit(request.user, visit):
+        raise Http404("Visita não encontrada na sua carteira.")
     return render(request, 'visits/partials/visit_feedback_form.html', {'visit': visit})
 
 
+@login_required(login_url='crm_login')
 def visit_feedback_save_view(request, visit_id):
     """Salva o feedback pós-visita e executa a automação de mover o lead para 'Proposta / Negociação'"""
     visit = get_object_or_404(PropertyVisit.objects.select_related('lead', 'lead__pipeline', 'visit_property'), pk=visit_id)
+    if not can_access_visit(request.user, visit):
+        raise Http404("Visita não encontrada na sua carteira.")
 
     if request.method == 'POST':
         status_val = request.POST.get('status', 'completed')
@@ -845,7 +1010,6 @@ def visit_feedback_save_view(request, visit_id):
         lead = visit.lead
         lead.last_contact_at = timezone.now()
 
-        # REGRA DE OURO: Se o cliente tem intenção de fazer proposta, move o lead automaticamente
         if will_make_proposal:
             proposal_stage = Stage.objects.filter(
                 pipeline=lead.pipeline,
@@ -860,7 +1024,7 @@ def visit_feedback_save_view(request, visit_id):
 
                 InteractionLog.objects.create(
                     lead=lead,
-                    user=request.user if request.user.is_authenticated else None,
+                    user=request.user,
                     action_type='proposal_sent',
                     content=(
                         f"🤝 [AUTOMAÇÃO DE ESTÁGIO] Movido de '{old_stage}' para '{proposal_stage.name}' "
@@ -871,14 +1035,14 @@ def visit_feedback_save_view(request, visit_id):
         else:
             InteractionLog.objects.create(
                 lead=lead,
-                user=request.user if request.user.is_authenticated else None,
+                user=request.user,
                 action_type='visit_feedback',
                 content=f"Feedback registrado para visita ao imóvel [{visit.visit_property.code}]: Nota {client_rating or '-'}/5. Parecer: {feedback_notes or 'Sem observações'}."
             )
 
         lead.save()
         messages.success(request, f'Feedback da visita ao imóvel {visit.visit_property.code} salvo com sucesso!')
-        
+
         referrer = request.META.get('HTTP_REFERER', '')
         if 'visits' in referrer:
             return redirect('visit_schedule')
@@ -887,12 +1051,16 @@ def visit_feedback_save_view(request, visit_id):
     return redirect('visit_schedule')
 
 
+@login_required(login_url='crm_login')
 def visit_key_action_view(request, visit_id):
     """Registra a retirada ou devolução de chaves com timestamp auditável"""
     visit = get_object_or_404(PropertyVisit.objects.select_related('lead', 'visit_property', 'agent'), pk=visit_id)
+    if not can_access_visit(request.user, visit):
+        raise Http404("Visita não encontrada na sua carteira.")
 
     if request.method == 'POST':
         action_type = request.POST.get('action_type')
+        agent_display = (visit.agent.get_full_name() or visit.agent.username) if visit.agent else 'responsável'
 
         if action_type == 'withdraw':
             visit.key_status = 'with_agent'
@@ -902,9 +1070,9 @@ def visit_key_action_view(request, visit_id):
 
             InteractionLog.objects.create(
                 lead=visit.lead,
-                user=request.user if request.user.is_authenticated else visit.agent,
+                user=request.user,
                 action_type='key_action',
-                content=f"🔑 Chave do imóvel [{visit.visit_property.code}] RETIRADA pelo corretor {visit.agent.get_full_name if visit.agent else 'responsável'} às {visit.key_withdrawn_at.strftime('%H:%M')}."
+                content=f"🔑 Chave do imóvel [{visit.visit_property.code}] RETIRADA pelo corretor {agent_display} às {visit.key_withdrawn_at.strftime('%H:%M')}."
             )
             messages.warning(request, f'Chave do imóvel {visit.visit_property.code} retirada! Lembre-se do prazo de devolução de até 4h.')
 
@@ -915,18 +1083,23 @@ def visit_key_action_view(request, visit_id):
 
             InteractionLog.objects.create(
                 lead=visit.lead,
-                user=request.user if request.user.is_authenticated else visit.agent,
+                user=request.user,
                 action_type='key_action',
                 content=f"✅ Chave do imóvel [{visit.visit_property.code}] DEVOLVIDA na imobiliária às {visit.key_returned_at.strftime('%H:%M')}."
             )
             messages.success(request, f'Chave do imóvel {visit.visit_property.code} devolvida com sucesso!')
 
-    return redirect(request.META.get('HTTP_REFERER', 'visit_schedule'))
+    safe_ref = get_safe_redirect_url(request, request.META.get('HTTP_REFERER'), reverse('visit_schedule'))
+    return redirect(safe_ref)
 
 
+@login_required(login_url='crm_login')
 def visit_whatsapp_confirm_view(request, visit_id):
     """Redireciona para o link gerado do WhatsApp com mensagem de confirmação"""
-    visit = get_object_or_404(PropertyVisit, pk=visit_id)
+    visit = get_object_or_404(PropertyVisit.objects.select_related('lead', 'visit_property'), pk=visit_id)
+    if not can_access_visit(request.user, visit):
+        raise Http404("Visita não encontrada na sua carteira.")
+
     if visit.whatsapp_confirmation_url and visit.whatsapp_confirmation_url != '#':
         return redirect(visit.whatsapp_confirmation_url)
     messages.error(request, 'Telefone do cliente inválido para WhatsApp.')
@@ -937,8 +1110,10 @@ def visit_whatsapp_confirm_view(request, visit_id):
 # FASE 5: TAREFAS & FOLLOW-UPS DO DIA
 # ==========================================
 
+@login_required(login_url='crm_login')
 def task_list_view(request):
     """Tela 'Minhas Tarefas & Follow-ups do Dia' com separação por Atrasadas, Hoje e Próximos 7 Dias"""
+    user_is_mgr = is_user_manager(request.user)
     selected_category = request.GET.get('category', '')
     selected_agent = request.GET.get('agent', '')
 
@@ -949,25 +1124,29 @@ def task_list_view(request):
 
     base_qs = Activity.objects.select_related('lead', 'lead__client', 'related_property', 'assigned_to')
 
-    if selected_category:
-        base_qs = base_qs.filter(task_type=selected_category)
-    if selected_agent:
+    if not user_is_mgr:
+        base_qs = base_qs.filter(assigned_to=request.user)
+    elif selected_agent:
         base_qs = base_qs.filter(assigned_to_id=selected_agent)
 
-    # Blocos de Tarefas
+    if selected_category:
+        base_qs = base_qs.filter(task_type=selected_category)
+
     overdue_tasks = list(base_qs.filter(is_completed=False, due_date__lt=now).order_by('due_date'))
     today_tasks = list(base_qs.filter(is_completed=False, due_date__gte=now, due_date__lte=end_of_today).order_by('due_date'))
     upcoming_tasks = list(base_qs.filter(is_completed=False, due_date__gt=end_of_today, due_date__lte=seven_days_later).order_by('due_date'))
     completed_tasks = list(base_qs.filter(is_completed=True).order_by('-completed_at')[:20])
 
-    # KPIs
     today_tasks_count = len(today_tasks)
     overdue_tasks_count = len(overdue_tasks)
     upcoming_tasks_count = len(upcoming_tasks)
     completed_today_count = base_qs.filter(is_completed=True, completed_at__date=today).count()
 
     agents = User.objects.filter(is_active=True).order_by('first_name', 'username')
-    active_leads = PropertyLead.objects.filter(status='open').select_related('client').order_by('-created_at')[:30]
+    leads_qs = PropertyLead.objects.filter(status='open').select_related('client')
+    if not user_is_mgr:
+        leads_qs = leads_qs.filter(agent=request.user)
+    active_leads = leads_qs.order_by('-created_at')[:30]
     available_properties = Property.objects.filter(status__in=['available', 'reserved']).order_by('code')[:30]
 
     context = {
@@ -990,6 +1169,7 @@ def task_list_view(request):
     return render(request, 'tasks/list.html', context)
 
 
+@login_required(login_url='crm_login')
 def task_create_view(request):
     """Criação de Tarefa / Follow-up (do modal ou do drawer do lead)"""
     if request.method == 'POST':
@@ -1006,8 +1186,17 @@ def task_create_view(request):
         if timezone.is_naive(due_date):
             due_date = timezone.make_aware(due_date)
 
-        assigned_to = User.objects.filter(pk=assigned_to_id).first() or (request.user if request.user.is_authenticated else User.objects.first())
-        lead = PropertyLead.objects.filter(pk=lead_id).first() if lead_id else None
+        if is_user_manager(request.user) and assigned_to_id:
+            assigned_to = User.objects.filter(pk=assigned_to_id).first() or request.user
+        else:
+            assigned_to = request.user
+
+        lead = None
+        if lead_id:
+            lead = get_object_or_404(PropertyLead, pk=lead_id)
+            if not can_access_lead(request.user, lead):
+                raise Http404("Lead não encontrado na sua carteira.")
+
         related_property = Property.objects.filter(pk=property_id).first() if property_id else None
 
         task = Activity.objects.create(
@@ -1024,25 +1213,29 @@ def task_create_view(request):
         if lead:
             InteractionLog.objects.create(
                 lead=lead,
-                user=request.user if request.user.is_authenticated else assigned_to,
+                user=request.user,
                 action_type='task_created',
                 content=f"⏰ Tarefa criada: '{task.title}' para {due_date.strftime('%d/%m/%Y às %H:%M')} (Prioridade: {task.get_priority_display()})."
             )
 
         messages.success(request, f'Tarefa "{task.title}" criada com sucesso!')
-        
+
         redirect_to = request.POST.get('redirect_to')
         if redirect_to == 'drawer' and lead:
             return redirect('kanban')
 
-        return redirect(request.META.get('HTTP_REFERER', 'task_list'))
+        safe_ref = get_safe_redirect_url(request, request.META.get('HTTP_REFERER'), reverse('task_list'))
+        return redirect(safe_ref)
 
     return redirect('task_list')
 
 
+@login_required(login_url='crm_login')
 def task_toggle_complete_view(request, task_id):
     """Alterna o status de conclusão de uma tarefa via HTMX"""
     task = get_object_or_404(Activity.objects.select_related('lead', 'lead__client', 'related_property', 'assigned_to'), pk=task_id)
+    if not can_access_task(request.user, task):
+        raise Http404("Tarefa não encontrada na sua carteira.")
 
     task.is_completed = not task.is_completed
     if task.is_completed:
@@ -1050,7 +1243,7 @@ def task_toggle_complete_view(request, task_id):
         if task.lead:
             InteractionLog.objects.create(
                 lead=task.lead,
-                user=request.user if request.user.is_authenticated else task.assigned_to,
+                user=request.user,
                 action_type='note',
                 content=f"✅ Tarefa concluída: '{task.title}'."
             )
@@ -1065,6 +1258,8 @@ def task_toggle_complete_view(request, task_id):
 # FASE 6: PAINEL DE INDICADORES & DASHBOARD BI
 # ==========================================
 
+@login_required(login_url='crm_login')
+@rate_limit('heavy_dashboard', 30, 60, scope='user_or_ip')
 def dashboard_view(request):
     """
     Painel de Inteligência e Indicadores Executivos (BI Imobiliário)
@@ -1073,14 +1268,11 @@ def dashboard_view(request):
     - Corretor: Filtro automático no backend (vê apenas sua própria produção e meta individual).
     """
     user = request.user
-    is_manager = user.is_authenticated and (
-        (hasattr(user, 'profile') and user.profile.is_manager) or user.is_superuser or user.is_staff
-    )
+    is_manager = is_user_manager(user)
 
     selected_agent_id = request.GET.get('agent', '').strip()
-    trans_type_filter = request.GET.get('trans_type', 'all').strip() # 'all', 'buy', 'rent'
+    trans_type_filter = request.GET.get('trans_type', 'all').strip()
 
-    # 1. Definir Escopo Base dos Leads de acordo com as permissões
     if is_manager:
         if selected_agent_id:
             leads_base_qs = PropertyLead.objects.filter(agent_id=selected_agent_id)
@@ -1089,31 +1281,26 @@ def dashboard_view(request):
             leads_base_qs = PropertyLead.objects.all()
             target_agent = None
     else:
-        leads_base_qs = PropertyLead.objects.filter(agent=user) if user.is_authenticated else PropertyLead.objects.none()
+        leads_base_qs = PropertyLead.objects.filter(agent=user)
         target_agent = user
 
-    # Filtro opcional de finalidade (Venda vs Locação)
     if trans_type_filter in ['buy', 'rent']:
         leads_filtered_qs = leads_base_qs.filter(transaction_type=trans_type_filter)
     else:
         leads_filtered_qs = leads_base_qs
 
-    # 2. Definição do Período Atual (Mês Corrente)
     now = timezone.now()
     start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    # Leads Ganhos no Mês Corrente
     won_leads_month = leads_filtered_qs.filter(
         status='won'
     ).filter(
         Q(closed_at__gte=start_of_month) | Q(closed_at__isnull=True, updated_at__gte=start_of_month)
     )
 
-    # 3. KPIs Financeiros Principais
     vgv_pipeline = leads_filtered_qs.filter(status='open').aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
     vgv_fechado_mes = won_leads_month.aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
 
-    # Separação Venda vs Locação
     vgv_vendas_mes = leads_base_qs.filter(
         status='won', transaction_type='buy'
     ).filter(
@@ -1126,11 +1313,9 @@ def dashboard_view(request):
         Q(closed_at__gte=start_of_month) | Q(closed_at__isnull=True, updated_at__gte=start_of_month)
     ).aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
 
-    # Comissão Estimada / Realizada (Média de 6%)
     comissao_prevista = vgv_pipeline * Decimal('0.06')
     comissao_realizada = vgv_fechado_mes * Decimal('0.06')
 
-    # Meta Mensal & Barra de Progresso
     if target_agent and hasattr(target_agent, 'profile'):
         meta_mensal = target_agent.profile.monthly_goal or Decimal('500000.00')
     elif is_manager and not selected_agent_id:
@@ -1141,15 +1326,12 @@ def dashboard_view(request):
 
     meta_progress_percent = min(100.0, float(round((vgv_fechado_mes / meta_mensal) * 100, 1))) if meta_mensal > 0 else 0.0
 
-    # Ticket Médio
     all_won_leads = leads_filtered_qs.filter(status='won')
     ticket_medio = all_won_leads.aggregate(Avg('budget'))['budget__avg'] or Decimal('0.00')
 
-    # Tempo Médio de Fechamento (Ciclo em Dias)
     cycle_days_list = [lead.cycle_time_days for lead in all_won_leads]
     tempo_medio_ciclo = round(sum(cycle_days_list) / len(cycle_days_list), 1) if cycle_days_list else 18.5
 
-    # 4. Funil de Conversão Step-by-Step
     pipeline_default = Pipeline.objects.filter(is_default=True).first() or Pipeline.objects.first()
     stages = Stage.objects.filter(pipeline=pipeline_default).order_by('order') if pipeline_default else []
 
@@ -1166,7 +1348,6 @@ def dashboard_view(request):
             'percent': percent,
         })
 
-    # Taxa Geral de Conversão (Ganhos / Total Finalizados)
     total_won = leads_filtered_qs.filter(status='won').count()
     total_lost = leads_filtered_qs.filter(status='lost').count()
     total_concluded = total_won + total_lost
@@ -1174,7 +1355,6 @@ def dashboard_view(request):
         round((total_won / total_leads_count) * 100, 1) if total_leads_count > 0 else 0.0
     )
 
-    # 5. Gráfico 1: Origem dos Leads (Donut Chart)
     origin_choices = dict(PropertyLead.ORIGIN_CHOICES)
     origin_counts = leads_filtered_qs.values('origin').annotate(total=Count('id')).order_by('-total')
     origins_chart_labels = []
@@ -1187,14 +1367,11 @@ def dashboard_view(request):
         origins_chart_labels = ['Instagram Ads', 'Portal ZAP', 'VivaReal', 'Indicação', 'Site']
         origins_chart_data = [12, 8, 6, 4, 3]
 
-    # 6. Gráfico 2: Evolução do VGV nos Últimos 12 Meses (Bar Chart)
     month_names_pt = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
     vgv_monthly_labels = []
     vgv_monthly_data = []
 
-    # Monta os últimos 6 a 12 meses
     for i in range(5, -1, -1):
-        # Mês retroativo
         calc_month = (now.month - i - 1) % 12 + 1
         calc_year = now.year if (now.month - i) > 0 else now.year - 1
         label = f"{month_names_pt[calc_month]}/{str(calc_year)[2:]}"
@@ -1214,11 +1391,9 @@ def dashboard_view(request):
 
         vgv_monthly_data.append(float(month_sum))
 
-    # Se for mês atual e soma for 0 nos meses anteriores, adicionar o mês atual para ter visualização rica
     if sum(vgv_monthly_data) == 0 and float(vgv_fechado_mes) > 0:
         vgv_monthly_data[-1] = float(vgv_fechado_mes)
 
-    # 7. Gráfico 3: Motivos de Perda (Horizontal Bar Chart)
     lost_reasons_qs = leads_filtered_qs.filter(status='lost').exclude(lost_reason__isnull=True).exclude(lost_reason='').values('lost_reason').annotate(total=Count('id')).order_by('-total')[:6]
     lost_reasons_labels = []
     lost_reasons_data = []
@@ -1230,29 +1405,25 @@ def dashboard_view(request):
         lost_reasons_labels = ['Preço acima do orçamento', 'Financiamento reprovado', 'Localização desfavorável', 'Preferiu outro corretor', 'Desistiu da compra']
         lost_reasons_data = [5, 4, 3, 2, 1]
 
-    # 8. Ranking de Produtividade dos Corretores (Apenas para Gestor/Admin)
     agents_ranking = []
     if is_manager:
         all_agents = User.objects.filter(is_active=True).select_related('profile').order_by('first_name')
         for ag in all_agents:
             ag_leads = PropertyLead.objects.filter(agent=ag)
             ag_active = ag_leads.filter(status='open').count()
-            
-            # Visitas no mês
+
             ag_visits_month = PropertyVisit.objects.filter(
                 agent=ag,
                 status='completed',
                 scheduled_date__gte=start_of_month
             ).count()
 
-            # VGV fechado no mês
             ag_vgv_won = ag_leads.filter(
                 status='won'
             ).filter(
                 Q(closed_at__gte=start_of_month) | Q(closed_at__isnull=True, updated_at__gte=start_of_month)
             ).aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
 
-            # Conversão do corretor
             ag_won_count = ag_leads.filter(status='won').count()
             ag_total_concluded = ag_won_count + ag_leads.filter(status='lost').count()
             ag_conv_rate = round((ag_won_count / ag_total_concluded) * 100, 1) if ag_total_concluded > 0 else 0.0
@@ -1270,7 +1441,6 @@ def dashboard_view(request):
                 'goal_percent': ag_goal_percent,
             })
 
-        # Ordena pelo maior VGV fechado
         agents_ranking.sort(key=lambda x: x['vgv_won'], reverse=True)
 
     agents = User.objects.filter(is_active=True).order_by('first_name', 'username')
@@ -1280,8 +1450,7 @@ def dashboard_view(request):
         'selected_agent_id': selected_agent_id,
         'trans_type_filter': trans_type_filter,
         'agents': agents,
-        
-        # KPIs Topo
+
         'vgv_pipeline': vgv_pipeline,
         'vgv_fechado_mes': vgv_fechado_mes,
         'vgv_vendas_mes': vgv_vendas_mes,
@@ -1294,18 +1463,23 @@ def dashboard_view(request):
         'tempo_medio_ciclo': tempo_medio_ciclo,
         'taxa_conversao_geral': taxa_conversao_geral,
 
-        # Funil
         'funnel_data': funnel_data,
 
-        # Datasets Chart.js (JSON strings)
-        'origins_chart_labels_json': json.dumps(origins_chart_labels),
-        'origins_chart_data_json': json.dumps(origins_chart_data),
-        'vgv_monthly_labels_json': json.dumps(vgv_monthly_labels),
-        'vgv_monthly_data_json': json.dumps(vgv_monthly_data),
-        'lost_reasons_labels_json': json.dumps(lost_reasons_labels),
-        'lost_reasons_data_json': json.dumps(lost_reasons_data),
+        # Listas nativas (para json_script seguro sem |safe) + JSON escapado para retrocompatibilidade
+        'origins_chart_labels': origins_chart_labels,
+        'origins_chart_data': origins_chart_data,
+        'vgv_monthly_labels': vgv_monthly_labels,
+        'vgv_monthly_data': vgv_monthly_data,
+        'lost_reasons_labels': lost_reasons_labels,
+        'lost_reasons_data': lost_reasons_data,
 
-        # Ranking
+        'origins_chart_labels_json': safe_json_dumps(origins_chart_labels),
+        'origins_chart_data_json': safe_json_dumps(origins_chart_data),
+        'vgv_monthly_labels_json': safe_json_dumps(vgv_monthly_labels),
+        'vgv_monthly_data_json': safe_json_dumps(vgv_monthly_data),
+        'lost_reasons_labels_json': safe_json_dumps(lost_reasons_labels),
+        'lost_reasons_data_json': safe_json_dumps(lost_reasons_data),
+
         'agents_ranking': agents_ranking,
     }
 
@@ -1316,31 +1490,34 @@ def dashboard_view(request):
 # FASE 7: WEBHOOKS, INTEGRAÇÕES & FEED XML
 # ==========================================
 
-from django.views.decorators.csrf import csrf_exempt
-
 @csrf_exempt
+@rate_limit('webhook_leads', 60, 60, scope='ip')
 def lead_webhook_ingest_view(request):
     """
     Endpoint de Ingestão de Leads via Webhook Seguro (Meta Ads, ZAP, VivaReal, Site, RD Station)
-    - Autenticação via cabeçalho X-API-KEY ou query param api_key
-    - Sanitização de dados de entrada
-    - Criação de lead na etapa '1. Novo Lead'
-    - Vinculação de imóvel por código (se informado)
-    - Roteamento Inteligente (Prioridade do Captador + Roleta Circular Round-Robin)
+    - Autenticação em tempo constante via hmac.compare_digest (X-API-KEY ou query param api_key)
+    - Rate Limiting de 60 req/min por IP
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Método não permitido. Utilize POST.'}, status=405)
 
-    # 1. Autenticação por API Key
-    provided_key = request.headers.get('X-API-KEY') or request.GET.get('api_key')
-    expected_key = settings.WEBHOOK_API_KEY
+    provided_key = str(request.headers.get('X-API-KEY') or request.GET.get('api_key') or '')
+    expected_key = str(settings.WEBHOOK_API_KEY or '')
 
-    if not provided_key or provided_key != expected_key:
+    if not provided_key or not expected_key or not hmac.compare_digest(
+        provided_key.encode('utf-8'),
+        expected_key.encode('utf-8'),
+    ):
+        log_security_event(
+            action='webhook_rejected',
+            target='webhook_lead_ingest',
+            details='Tentativa de ingestão via webhook com X-API-KEY ausente ou inválida.',
+            request=request,
+        )
         return JsonResponse({
             'error': 'Acesso não autorizado. Envie o cabeçalho X-API-KEY com uma chave válida.'
         }, status=401)
 
-    # 2. Parsing e Sanitização do Payload (JSON ou Form POST)
     try:
         if request.content_type == 'application/json' and request.body:
             data = json.loads(request.body)
@@ -1356,7 +1533,7 @@ def lead_webhook_ingest_view(request):
     origin = str(data.get('origin') or data.get('origem') or 'webhook').strip().lower()[:30]
     notes = str(data.get('notes') or data.get('mensagem') or data.get('message') or '').strip()
     preferred_location = str(data.get('location') or data.get('bairro') or '').strip()[:100]
-    
+
     budget_raw = data.get('budget') or data.get('valor') or 0.00
     try:
         budget = Decimal(str(budget_raw).replace(',', '.'))
@@ -1370,31 +1547,32 @@ def lead_webhook_ingest_view(request):
     if not phone and not email:
         return JsonResponse({'error': 'É necessário informar ao menos um telefone ou e-mail de contato.'}, status=400)
 
-    # 3. Localizar ou Criar Cliente (Person)
     client_phone = phone or f"sem-fone-{random.randint(10000, 99999)}"
     client, _ = Person.objects.get_or_create(
         phone=client_phone,
         defaults={
             'name': name,
             'email': email,
-            'client_type': 'buyer' if transaction_type == 'buy' else 'renter'
+            'client_type': 'buyer' if transaction_type == 'buy' else 'renter',
+            'lgpd_consent': bool(data.get('lgpd_consent', True)),
+            'lgpd_consent_at': timezone.now(),
+            'lgpd_origin': f'webhook:{origin}',
         }
     )
 
-    # Atualiza dados caso estivessem vazios
     if email and not client.email:
         client.email = email
         client.save()
 
-    # 4. Localizar Imóvel de Interesse (se houver código)
     matched_property = None
     if property_code:
         matched_property = Property.objects.filter(code__iexact=property_code).first()
 
-    # 5. Roteamento Inteligente (Prioridade do Captador + Roleta Circular)
     assigned_agent = assign_lead_smart(property_obj=matched_property)
+    if assigned_agent and not client.assigned_agent_id:
+        client.assigned_agent = assigned_agent
+        client.save(update_fields=['assigned_agent', 'updated_at'])
 
-    # 6. Criação do Lead no Funil
     pipeline = Pipeline.objects.filter(is_default=True).first() or Pipeline.objects.first()
     first_stage = Stage.objects.filter(pipeline=pipeline).order_by('order').first()
 
@@ -1418,7 +1596,6 @@ def lead_webhook_ingest_view(request):
     if matched_property:
         lead.interested_properties.add(matched_property)
 
-    # 7. Registro de Histórico (Timeline)
     agent_info = f"ao corretor {assigned_agent.get_full_name() or assigned_agent.username}" if assigned_agent else "sem corretor atribuído"
     captor_info = f" (Captador do Imóvel [{matched_property.code}])" if matched_property and matched_property.captured_by == assigned_agent else " (Roleta de Corretores)"
 
@@ -1440,6 +1617,12 @@ def lead_webhook_ingest_view(request):
     }, status=201)
 
 
+def _safe_cdata(val) -> str:
+    """Previne quebra/injeção de bloco CDATA no XML."""
+    return str(val or '').replace(']]>', ']]]]><![CDATA[>')
+
+
+@rate_limit('export_xml_feed', 30, 60, scope='user_or_ip')
 def portal_xml_feed_view(request):
     """
     Gera o Feed XML Padrão para Portais Imobiliários (ZAP, VivaReal, OLX, Imovelweb)
@@ -1450,6 +1633,13 @@ def portal_xml_feed_view(request):
         status='available'
     ).prefetch_related('images').select_related('captured_by').order_by('code')
 
+    log_security_event(
+        action='data_export',
+        target='portal_xml_feed',
+        details='Exportação pública de imóveis disponíveis via Feed XML de Portais.',
+        request=request,
+    )
+
     xml_lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<Carga xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">',
@@ -1458,26 +1648,25 @@ def portal_xml_feed_view(request):
 
     for prop in properties:
         xml_lines.append('    <Imovel>')
-        xml_lines.append(f'      <CodigoImovel>{prop.code}</CodigoImovel>')
-        xml_lines.append(f'      <TipoImovel>{prop.get_property_type_display()}</TipoImovel>')
-        xml_lines.append(f'      <Finalidade>{prop.get_transaction_type_display()}</Finalidade>')
-        xml_lines.append(f'      <Titulo><![CDATA[{prop.title}]]></Titulo>')
-        xml_lines.append(f'      <Descricao><![CDATA[{prop.description or ""}]]></Descricao>')
+        xml_lines.append(f'      <CodigoImovel>{xml_escape(str(prop.code or ""))}</CodigoImovel>')
+        xml_lines.append(f'      <TipoImovel>{xml_escape(str(prop.get_property_type_display()))}</TipoImovel>')
+        xml_lines.append(f'      <Finalidade>{xml_escape(str(prop.get_transaction_type_display()))}</Finalidade>')
+        xml_lines.append(f'      <Titulo><![CDATA[{_safe_cdata(prop.title)}]]></Titulo>')
+        xml_lines.append(f'      <Descricao><![CDATA[{_safe_cdata(prop.description or "")}]]></Descricao>')
         xml_lines.append(f'      <PrecoVenda>{prop.sale_price:.2f}</PrecoVenda>')
         xml_lines.append(f'      <PrecoLocacao>{prop.rental_price:.2f}</PrecoLocacao>')
         xml_lines.append(f'      <TaxaCondominio>{prop.condo_fee:.2f}</TaxaCondominio>')
         xml_lines.append(f'      <ValorIPTU>{prop.iptu:.2f}</ValorIPTU>')
-        xml_lines.append(f'      <Bairro><![CDATA[{prop.neighborhood}]]></Bairro>')
-        xml_lines.append(f'      <Cidade><![CDATA[{prop.city}]]></Cidade>')
-        xml_lines.append(f'      <Estado>{prop.state}</Estado>')
+        xml_lines.append(f'      <Bairro><![CDATA[{_safe_cdata(prop.neighborhood)}]]></Bairro>')
+        xml_lines.append(f'      <Cidade><![CDATA[{_safe_cdata(prop.city)}]]></Cidade>')
+        xml_lines.append(f'      <Estado>{xml_escape(str(prop.state or ""))}</Estado>')
         xml_lines.append(f'      <AreaUtil>{prop.usable_area:.2f}</AreaUtil>')
         xml_lines.append(f'      <AreaTotal>{prop.total_area:.2f}</AreaTotal>')
         xml_lines.append(f'      <QtdQuartos>{prop.bedrooms}</QtdQuartos>')
         xml_lines.append(f'      <QtdSuites>{prop.suites}</QtdSuites>')
         xml_lines.append(f'      <QtdBanheiros>{prop.bathrooms}</QtdBanheiros>')
         xml_lines.append(f'      <QtdVagas>{prop.parking_spaces}</QtdVagas>')
-        
-        # Diferenciais
+
         xml_lines.append('      <Diferenciais>')
         if prop.pets_allowed:
             xml_lines.append('        <Diferencial>Aceita Pets</Diferencial>')
@@ -1493,13 +1682,12 @@ def portal_xml_feed_view(request):
             xml_lines.append('        <Diferencial>Sol da Manhã</Diferencial>')
         xml_lines.append('      </Diferenciais>')
 
-        # Fotos
         xml_lines.append('      <Fotos>')
         for img in prop.images.all():
             if img.image:
                 img_url = request.build_absolute_uri(img.image.url)
                 principal = '1' if img.is_featured else '0'
-                xml_lines.append(f'        <Foto Principal="{principal}"><![CDATA[{img_url}]]></Foto>')
+                xml_lines.append(f'        <Foto Principal="{principal}"><![CDATA[{_safe_cdata(img_url)}]]></Foto>')
         xml_lines.append('      </Fotos>')
 
         xml_lines.append('    </Imovel>')
@@ -1511,19 +1699,27 @@ def portal_xml_feed_view(request):
     return HttpResponse(xml_content, content_type='application/xml; charset=utf-8')
 
 
+@login_required(login_url='crm_login')
 def whatsapp_template_list_view(request):
-    """Tela de Gest?o de Modelos de Mensagens do WhatsApp"""
-    templates = WhatsAppTemplate.objects.all().order_by('category', 'title')
-    categories = WhatsAppTemplate.CATEGORY_CHOICES
-    contacts = Person.objects.exclude(phone='').order_by('name')
-    properties = Property.objects.all().order_by('-created_at')
+    """Tela de Gestão de Modelos de Mensagens do WhatsApp"""
+    user_is_mgr = is_user_manager(request.user)
+    templates_qs = WhatsAppTemplate.objects.all()
+    if not user_is_mgr:
+        templates_qs = templates_qs.filter(Q(created_by__isnull=True) | Q(created_by=request.user))
+
+    contacts_qs = Person.objects.exclude(phone='')
+    if not user_is_mgr:
+        contacts_qs = contacts_qs.filter(assigned_agent=request.user)
+
     return render(request, 'templates_whatsapp/list.html', {
-        'templates': templates,
-        'categories': categories,
-        'contacts': contacts,
-        'properties': properties,
+        'templates': templates_qs.order_by('category', 'title'),
+        'categories': WhatsAppTemplate.CATEGORY_CHOICES,
+        'contacts': contacts_qs.order_by('name'),
+        'properties': Property.objects.all().order_by('-created_at'),
     })
 
+
+@login_required(login_url='crm_login')
 def whatsapp_template_save_view(request):
     """Criação ou Edição de Modelo de Mensagem do WhatsApp"""
     if request.method == 'POST':
@@ -1535,6 +1731,14 @@ def whatsapp_template_save_view(request):
 
         if template_id:
             tpl = get_object_or_404(WhatsAppTemplate, pk=template_id)
+            if not can_edit_whatsapp_template(request.user, tpl):
+                log_security_event(
+                    action='unauthorized_access',
+                    target=f'WhatsAppTemplate #{template_id}',
+                    details='Tentativa bloqueada de edição de template global ou de outro corretor.',
+                    request=request,
+                )
+                return HttpResponseForbidden('Você não tem permissão para editar este modelo.')
             tpl.title = title
             tpl.category = category
             tpl.content = content
@@ -1546,16 +1750,27 @@ def whatsapp_template_save_view(request):
                 title=title,
                 category=category,
                 content=content,
-                is_active=is_active
+                created_by=request.user,
+                is_active=is_active,
             )
             messages.success(request, f'Modelo "{tpl.title}" cadastrado com sucesso!')
 
     return redirect('whatsapp_template_list')
 
 
+@login_required(login_url='crm_login')
 def whatsapp_template_delete_view(request, template_id):
     """Exclusão de Modelo de Mensagem do WhatsApp"""
     tpl = get_object_or_404(WhatsAppTemplate, pk=template_id)
+    if not can_edit_whatsapp_template(request.user, tpl):
+        log_security_event(
+            action='unauthorized_access',
+            target=f'WhatsAppTemplate #{template_id}',
+            details='Tentativa bloqueada de exclusão de template global ou de outro corretor.',
+            request=request,
+        )
+        return HttpResponseForbidden('Você não tem permissão para excluir este modelo.')
+
     if request.method == 'POST':
         title = tpl.title
         tpl.delete()
@@ -1563,17 +1778,22 @@ def whatsapp_template_delete_view(request, template_id):
     return redirect('whatsapp_template_list')
 
 
+@login_required(login_url='crm_login')
 def lead_template_message_view(request, lead_id, template_id):
     """Renderiza a mensagem de um template para o lead e redireciona direto ao WhatsApp"""
     lead = get_object_or_404(PropertyLead.objects.select_related('client', 'agent'), pk=lead_id)
+    if not can_access_lead(request.user, lead):
+        raise Http404("Lead não encontrado na sua carteira.")
+
     template = get_object_or_404(WhatsAppTemplate, pk=template_id)
+    if not is_user_manager(request.user) and template.created_by_id not in (None, request.user.id):
+        raise Http404("Modelo não encontrado.")
 
-    wa_url = template.render_url(lead, agent=request.user if request.user.is_authenticated else lead.agent)
+    wa_url = template.render_url(lead, agent=request.user)
 
-    # Registra no log de interações
     InteractionLog.objects.create(
         lead=lead,
-        user=request.user if request.user.is_authenticated else lead.agent,
+        user=request.user,
         action_type='whatsapp_sent',
         content=f"💬 Disparo de WhatsApp utilizando o modelo '{template.title}'."
     )
@@ -1588,40 +1808,45 @@ def lead_template_message_view(request, lead_id, template_id):
 
 
 # ==========================================
-# MÓDULO DE CONTATOS (Frontend)
+# MÓDULO DE CONTATOS & CONFORMIDADE LGPD
 # ==========================================
 
+@login_required(login_url='crm_login')
+@rate_limit('search_contacts', 30, 60, scope='user_or_ip')
 def contact_list_view(request):
     """Listagem de contatos / clientes com busca e filtros — vinculados à conta"""
-    qs = Person.objects.select_related('assigned_agent').all()
+    user_is_mgr = is_user_manager(request.user)
+    base_qs = Person.objects.select_related('assigned_agent').all()
 
-    # Contatos vinculados à conta logada (corretor vê só os seus; gestor/admin vê todos)
-    if request.user.is_authenticated:
-        is_mgr = (
-            request.user.is_superuser
-            or (hasattr(request.user, 'profile') and UserProfile.objects.filter(user=request.user, role='manager').exists())
-        )
-        if not is_mgr:
-            qs = qs.filter(assigned_agent=request.user)
-    else:
-        return redirect('crm_login')
-
-    q = request.GET.get('q', '').strip()
-    if q:
-        qs = qs.filter(
-            Q(name__icontains=q) |
-            Q(email__icontains=q) |
-            Q(phone__icontains=q) |
-            Q(document__icontains=q)
-        )
+    if not user_is_mgr:
+        base_qs = base_qs.filter(assigned_agent=request.user)
 
     client_type = request.GET.get('type', '')
     if client_type:
-        qs = qs.filter(client_type=client_type)
+        base_qs = base_qs.filter(client_type=client_type)
 
     agent_id = request.GET.get('agent', '')
-    if agent_id:
-        qs = qs.filter(assigned_agent_id=agent_id)
+    if user_is_mgr and agent_id:
+        base_qs = base_qs.filter(assigned_agent_id=agent_id)
+
+    qs = base_qs
+    q = request.GET.get('q', '').strip()
+    if q:
+        q_digits = re.sub(r'\D', '', q)
+        matched_doc_ids = []
+        if len(q_digits) >= 3:
+            for person_obj in base_qs.exclude(document__isnull=True).exclude(document=''):
+                doc_plain = person_obj.document or ''
+                doc_digits = re.sub(r'\D', '', doc_plain)
+                if q.lower() in doc_plain.lower() or q_digits in doc_digits:
+                    matched_doc_ids.append(person_obj.id)
+
+        qs = base_qs.filter(
+            Q(name__icontains=q) |
+            Q(email__icontains=q) |
+            Q(phone__icontains=q) |
+            Q(id__in=matched_doc_ids)
+        )
 
     context = {
         'contacts': qs.order_by('-created_at'),
@@ -1631,14 +1856,18 @@ def contact_list_view(request):
         'client_types': Person.CLIENT_TYPES,
         'agents': User.objects.filter(is_active=True).order_by('first_name', 'username'),
         'total': qs.count(),
+        'is_manager': user_is_mgr,
     }
     if request.headers.get('HX-Request'):
         return render(request, 'contacts/partials/contact_rows.html', context)
     return render(request, 'contacts/list.html', context)
 
 
+@login_required(login_url='crm_login')
 def contact_create_view(request):
     """Cadastro de novo contato no frontend"""
+    user_is_mgr = is_user_manager(request.user)
+
     if request.method == 'POST':
         name = request.POST.get('name', '').strip()
         phone = request.POST.get('phone', '').strip()
@@ -1648,23 +1877,21 @@ def contact_create_view(request):
         client_type = request.POST.get('client_type', 'buyer')
         notes = request.POST.get('notes', '').strip() or None
         agent_id = request.POST.get('assigned_agent') or None
+        lgpd_origin = request.POST.get('lgpd_origin', '').strip() or 'cadastro_manual'
+
+        if 'lgpd_form_present' in request.POST:
+            lgpd_consent = 'lgpd_consent' in request.POST
+        else:
+            lgpd_consent = True
 
         if not name or not phone:
             messages.error(request, 'Nome e telefone são obrigatórios.')
             return redirect('contact_create')
 
-        agent = None
-        if request.user.is_authenticated:
-            is_mgr = (
-                request.user.is_superuser
-                or (hasattr(request.user, 'profile') and UserProfile.objects.filter(user=request.user, role='manager').exists())
-            )
-            if is_mgr and agent_id:
-                agent = User.objects.filter(pk=agent_id).first()
-            else:
-                agent = request.user  # contatos sempre vinculados à conta logada
-        elif agent_id:
-            agent = User.objects.filter(pk=agent_id).first()
+        if user_is_mgr and agent_id:
+            agent = User.objects.filter(pk=agent_id).first() or request.user
+        else:
+            agent = request.user
 
         person = Person.objects.create(
             name=name,
@@ -1675,6 +1902,9 @@ def contact_create_view(request):
             client_type=client_type,
             notes=notes,
             assigned_agent=agent,
+            lgpd_consent=lgpd_consent,
+            lgpd_consent_at=timezone.now() if lgpd_consent else None,
+            lgpd_origin=lgpd_origin,
         )
         messages.success(request, f'Contato "{person.name}" cadastrado com sucesso.')
         return redirect('contact_list')
@@ -1685,12 +1915,24 @@ def contact_create_view(request):
         'agents': User.objects.filter(is_active=True).order_by('first_name', 'username'),
         'form_title': 'Novo Contato',
         'form_action': 'contact_create',
+        'is_manager': user_is_mgr,
     })
 
 
+@login_required(login_url='crm_login')
 def contact_edit_view(request, pk):
-    """Edição de contato no frontend"""
+    """Edição de contato no frontend (isolada por carteira)"""
     person = get_object_or_404(Person, pk=pk)
+    user_is_mgr = is_user_manager(request.user)
+
+    if not can_access_person(request.user, person):
+        log_security_event(
+            action='unauthorized_access',
+            target=f'Person #{pk}',
+            details='Tentativa bloqueada de edição de contato de outra carteira.',
+            request=request,
+        )
+        raise Http404("Contato não encontrado na sua carteira.")
 
     if request.method == 'POST':
         person.name = request.POST.get('name', '').strip()
@@ -1700,8 +1942,20 @@ def contact_edit_view(request, pk):
         person.document = request.POST.get('document', '').strip() or None
         person.client_type = request.POST.get('client_type', person.client_type)
         person.notes = request.POST.get('notes', '').strip() or None
-        agent_id = request.POST.get('assigned_agent') or None
-        person.assigned_agent = User.objects.filter(pk=agent_id).first() if agent_id else None
+
+        if user_is_mgr:
+            agent_id = request.POST.get('assigned_agent') or None
+            person.assigned_agent = User.objects.filter(pk=agent_id).first() if agent_id else None
+
+        if 'lgpd_form_present' in request.POST:
+            new_consent = 'lgpd_consent' in request.POST
+            if new_consent and not person.lgpd_consent_at:
+                person.lgpd_consent_at = timezone.now()
+            person.lgpd_consent = new_consent
+            origin_val = request.POST.get('lgpd_origin', '').strip()
+            if origin_val:
+                person.lgpd_origin = origin_val
+
         person.save()
         messages.success(request, f'Contato "{person.name}" atualizado.')
         return redirect('contact_list')
@@ -1712,15 +1966,26 @@ def contact_edit_view(request, pk):
         'agents': User.objects.filter(is_active=True).order_by('first_name', 'username'),
         'form_title': f'Editar — {person.name}',
         'form_action': 'contact_edit',
+        'is_manager': user_is_mgr,
     })
 
 
+@login_required(login_url='crm_login')
 def contact_detail_view(request, pk):
-    """Ficha do contato"""
+    """Ficha do contato (isolada por carteira)"""
     person = get_object_or_404(
         Person.objects.select_related('assigned_agent').prefetch_related('leads', 'owned_properties'),
         pk=pk
     )
+    if not can_access_person(request.user, person):
+        log_security_event(
+            action='unauthorized_access',
+            target=f'Person #{pk}',
+            details='Tentativa bloqueada de visualização de contato de outra carteira.',
+            request=request,
+        )
+        raise Http404("Contato não encontrado na sua carteira.")
+
     prefs = getattr(person, 'preferences', None)
     return render(request, 'contacts/detail.html', {
         'contact': person,
@@ -1728,15 +1993,20 @@ def contact_detail_view(request, pk):
         'prefs': prefs,
         'leads': person.leads.select_related('stage', 'pipeline').all()[:20],
         'owned': person.owned_properties.all()[:20],
+        'is_manager': is_user_manager(request.user),
     })
 
 
+@login_required(login_url='crm_login')
 def client_preferences_save_view(request, person_id):
     """Salva/atualiza as preferências de busca do cliente (ClientPreference)"""
     if request.method != 'POST':
-        return redirect(request.META.get('HTTP_REFERER', 'contact_list'))
+        safe_ref = get_safe_redirect_url(request, request.META.get('HTTP_REFERER'), reverse('contact_list'))
+        return redirect(safe_ref)
 
     person = get_object_or_404(Person, pk=person_id)
+    if not can_access_person(request.user, person):
+        raise Http404("Contato não encontrado na sua carteira.")
 
     raw_locations = request.POST.get('preferred_locations', '')
     preferred_locations = [x.strip() for x in raw_locations.split(',') if x.strip()]
@@ -1763,18 +2033,90 @@ def client_preferences_save_view(request, person_id):
 
     ClientPreference.objects.update_or_create(person=person, defaults=defaults)
     messages.success(request, f'Preferências de {person.name} atualizadas com sucesso!')
-    return redirect(request.META.get('HTTP_REFERER', 'contact_list'))
+    safe_ref = get_safe_redirect_url(request, request.META.get('HTTP_REFERER'), reverse('contact_list'))
+    return redirect(safe_ref)
 
+
+@login_required(login_url='crm_login')
+def contact_anonymize_lgpd_view(request, pk):
+    """
+    Ação restrita a administradores/gestores para Anonimizar Titular (LGPD).
+    Substitui nome por 'Titular Anonimizado #<id>' e limpa telefone, e-mail, documento
+    e observações pessoais sem apagar o registro histórico de métricas do CRM.
+    """
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    if not is_user_manager(request.user):
+        log_security_event(
+            action='unauthorized_access',
+            target=f'LGPD Anonymize Person #{pk}',
+            details='Usuário não-administrador tentou executar anonimização LGPD.',
+            request=request,
+        )
+        return HttpResponseForbidden('Apenas administradores/gestores podem anonimizar titulares (LGPD).')
+
+    person = get_object_or_404(Person, pk=pk)
+    anonymize_person_lgpd(person, actor=request.user, request=request)
+    messages.success(request, f'Titular #{person.id} anonimizado com sucesso em conformidade com a LGPD.')
+    return redirect('contact_detail', pk=person.id)
+
+
+@login_required(login_url='crm_login')
+@rate_limit('export_lgpd_data', 30, 60, scope='user_or_ip')
+def contact_export_lgpd_view(request, pk):
+    """Exporta relatório estruturado de portabilidade LGPD do titular e registra auditoria."""
+    if not is_user_manager(request.user):
+        log_security_event(
+            action='unauthorized_access',
+            target=f'LGPD Export Person #{pk}',
+            details='Usuário não-administrador tentou exportar dados pessoais de titular.',
+            request=request,
+        )
+        return HttpResponseForbidden('Apenas administradores/gestores podem exportar dados de titulares.')
+
+    person = get_object_or_404(Person.objects.prefetch_related('leads'), pk=pk)
+    log_security_event(
+        action='data_export',
+        target=f'Person #{person.id}',
+        details='Exportação de portabilidade LGPD solicitada para o titular.',
+        request=request,
+    )
+
+    payload = {
+        'id': person.id,
+        'name': person.name,
+        'email': person.email,
+        'phone': person.phone,
+        'secondary_phone': person.secondary_phone,
+        'masked_document': person.masked_document,
+        'client_type': person.get_client_type_display(),
+        'lgpd_consent': person.lgpd_consent,
+        'lgpd_consent_at': person.lgpd_consent_at.isoformat() if person.lgpd_consent_at else None,
+        'lgpd_origin': person.lgpd_origin,
+        'created_at': person.created_at.isoformat(),
+        'leads_count': person.leads.count(),
+    }
+    response = JsonResponse(payload, json_dumps_params={'ensure_ascii': False, 'indent': 2})
+    response['Content-Disposition'] = f'attachment; filename="titular-{person.id}-lgpd.json"'
+    return response
+
+
+def privacy_policy_view(request):
+    """Rota pública /privacidade/ com a Política de Privacidade e Proteção de Dados (LGPD) do ImobiCRM."""
+    return render(request, 'auth/privacy_policy.html')
 
 
 # ==========================================
 # AUTENTICAÇÃO (Frontend)
 # ==========================================
 
+@rate_limit('login_post', 5, 60, methods=('POST',), scope='ip')
 def crm_login_view(request):
-    """Login por e-mail/usuário + senha (frontend CRM)"""
+    """Login por e-mail/usuário + senha (frontend CRM) protegido por Rate Limit (5 POST/min por IP)"""
     if request.user.is_authenticated:
-        return redirect(request.GET.get('next') or 'kanban')
+        safe_next = get_safe_redirect_url(request, request.GET.get('next'), reverse('kanban'))
+        return redirect(safe_next)
 
     error = None
     if request.method == 'POST':
@@ -1782,22 +2124,32 @@ def crm_login_view(request):
         password = request.POST.get('password', '')
         user = None
         if login_id and password:
-            # tenta username direto
             user = authenticate(request, username=login_id, password=password)
             if user is None and '@' in login_id:
-                # tenta por e-mail
                 u = User.objects.filter(email__iexact=login_id).first()
-                if u:
+                if u and u.username != login_id:
                     user = authenticate(request, username=u.username, password=password)
             if user is not None:
                 login(request, user)
-                # garante perfil
                 if not hasattr(user, 'profile') or not UserProfile.objects.filter(user=user).exists():
                     UserProfile.objects.get_or_create(user=user, defaults={'role': 'agent'})
-                next_url = request.POST.get('next') or request.GET.get('next') or '/'
-                return redirect(next_url)
+                log_security_event(
+                    action='login_success',
+                    target=user.username,
+                    details='Login realizado com sucesso no portal ImobiCRM.',
+                    user=user,
+                    request=request,
+                )
+                raw_next = request.POST.get('next') or request.GET.get('next') or '/'
+                return redirect(get_safe_redirect_url(request, raw_next, '/'))
             error = 'E-mail/usuário ou senha incorretos.'
         else:
+            log_security_event(
+                action='login_failed',
+                target=login_id or 'credencial_vazia',
+                details='Tentativa de login com campos obrigatórios em branco.',
+                request=request,
+            )
             error = 'Preencha e-mail e senha.'
 
     return render(request, 'auth/login.html', {
@@ -1817,15 +2169,13 @@ def google_login_start(request):
     """Inicia OAuth Google"""
     client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
     if not client_id:
-        messages.error(request, 'Login com Google não configurado. Defina GOOGLE_CLIENT_ID no settings.')
+        messages.error(request, 'Login com Google não configurado. Defina GOOGLE_CLIENT_ID nas variáveis de ambiente.')
         return redirect('crm_login')
 
-    import urllib.parse, secrets
-    state = secrets.token_urlsafe(16)
+    state = secrets.token_urlsafe(24)
     request.session['google_oauth_state'] = state
-    request.session['google_oauth_next'] = request.GET.get('next', '/')
+    request.session['google_oauth_next'] = get_safe_redirect_url(request, request.GET.get('next'), '/')
 
-    # Sempre usar URI fixa (Google bloqueia IP privado tipo 192.168.x.x)
     redirect_uri = getattr(settings, 'GOOGLE_REDIRECT_URI', '') or 'http://127.0.0.1:8000/login/google/callback/'
     params = {
         'client_id': client_id,
@@ -1842,8 +2192,6 @@ def google_login_start(request):
 
 def google_login_callback(request):
     """Callback OAuth Google — cria/associa usuário e vincula sessão"""
-    import urllib.parse, urllib.request, json
-
     client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
     client_secret = getattr(settings, 'GOOGLE_CLIENT_SECRET', '')
     if not client_id or not client_secret:
@@ -1856,7 +2204,8 @@ def google_login_callback(request):
         return redirect('crm_login')
 
     state = request.GET.get('state', '')
-    if state != request.session.get('google_oauth_state'):
+    expected_state = request.session.get('google_oauth_state') or ''
+    if not state or not expected_state or not hmac.compare_digest(state, expected_state):
         messages.error(request, 'Estado OAuth inválido. Tente novamente.')
         return redirect('crm_login')
 
@@ -1903,7 +2252,6 @@ def google_login_callback(request):
 
     given = info.get('given_name') or ''
     family = info.get('family_name') or ''
-    picture = info.get('picture') or ''
 
     user = User.objects.filter(email__iexact=email).first()
     if user is None:
@@ -1920,23 +2268,11 @@ def google_login_callback(request):
             last_name=family,
         )
         user.set_unusable_password()
-        user.is_staff = True  # acesso ao CRM frontend; permissões via grupo
         user.save()
-        # grupo Corretores
-        from django.contrib.auth.models import Group, Permission
+        from django.contrib.auth.models import Group
         group, _ = Group.objects.get_or_create(name='Corretores')
-        if group.permissions.count() == 0:
-            for name in ['person', 'company', 'clientpreference', 'property', 'propertyimage',
-                         'propertylead', 'pipeline', 'stage', 'activity', 'interactionlog',
-                         'propertyvisit', 'whatsapptemplate']:
-                for action in ('add', 'change', 'view', 'delete'):
-                    try:
-                        group.permissions.add(Permission.objects.get(codename=f'{action}_{name}'))
-                    except Permission.DoesNotExist:
-                        pass
         user.groups.add(group)
     else:
-        # atualiza nome se vazio
         if given and not user.first_name:
             user.first_name = given
             user.last_name = family or user.last_name
@@ -1944,22 +2280,27 @@ def google_login_callback(request):
 
     UserProfile.objects.get_or_create(user=user, defaults={'role': 'agent'})
     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+    log_security_event(
+        action='login_success',
+        target=user.username,
+        details='Login realizado via Google OAuth2.',
+        user=user,
+        request=request,
+    )
 
-    next_url = request.session.pop('google_oauth_next', '/')
+    next_url = get_safe_redirect_url(request, request.session.pop('google_oauth_next', '/'), '/')
     request.session.pop('google_oauth_state', None)
     messages.success(request, f'Bem-vindo, {user.get_full_name() or user.email}!')
-    return redirect(next_url or '/')
+    return redirect(next_url)
 
 
 # ==========================================
 # INTEGRAÇÃO DE CALENDÁRIOS (Google & Apple)
 # ==========================================
 
+@login_required(login_url='crm_login')
 def google_calendar_connect_view(request):
     """Inicia o fluxo OAuth2 para autorizar o Google Calendar"""
-    if not request.user.is_authenticated:
-        return redirect('crm_login')
-
     client_id = getattr(settings, 'GOOGLE_CLIENT_ID', '')
     if not client_id:
         messages.error(request, 'Google Client ID não configurado no servidor.')
@@ -1982,14 +2323,12 @@ def google_calendar_connect_view(request):
     return redirect(auth_url)
 
 
+@login_required(login_url='crm_login')
 def google_calendar_callback_view(request):
-    """Callback do OAuth2 do Google Calendar: armazena tokens e roda sync inicial"""
-    if not request.user.is_authenticated:
-        return redirect('crm_login')
-
-    expected_state = request.session.pop('google_cal_oauth_state', None)
+    """Callback do OAuth2 do Google Calendar: armazena tokens cifrados em repouso e roda sync inicial"""
+    expected_state = request.session.pop('google_cal_oauth_state', None) or ''
     state = request.GET.get('state', '')
-    if not expected_state or state != expected_state:
+    if not expected_state or not state or not hmac.compare_digest(state, expected_state):
         messages.error(request, 'Sessão de autorização inválida ou expirada.')
         return redirect('visit_schedule')
 
@@ -2030,7 +2369,6 @@ def google_calendar_callback_view(request):
     integration.google_connected = True
     integration.save()
 
-    # Carga inicial automática de visitas futuras
     from core.calendar_sync import initial_sync_future_visits
     synced = initial_sync_future_visits(request.user)
 
@@ -2038,17 +2376,16 @@ def google_calendar_callback_view(request):
     return redirect('visit_schedule')
 
 
+@login_required(login_url='crm_login')
 def google_calendar_sync_now_view(request):
     """Dispara sincronização manual imediata das visitas futuras para o Google Agenda"""
-    if not request.user.is_authenticated:
-        return redirect('crm_login')
-
     from core.calendar_sync import initial_sync_future_visits
     synced = initial_sync_future_visits(request.user)
     messages.success(request, f'Sincronização concluída! {synced} visita(s) atualizada(s) no seu Google Agenda.')
     return redirect('visit_schedule')
 
 
+@rate_limit('export_ical_feed', 30, 60, scope='user_or_ip')
 def visit_ical_feed_view(request, token):
     """
     Entrega o feed iCalendar (.ics) de visitas exclusivo para o corretor (ou gestor).
@@ -2057,7 +2394,15 @@ def visit_ical_feed_view(request, token):
     integration = get_object_or_404(CalendarIntegration.objects.select_related('user'), ical_token=token)
     user = integration.user
 
-    is_mgr = user.is_superuser or (hasattr(user, 'profile') and user.profile.role == 'manager')
+    log_security_event(
+        action='data_export',
+        target=f'visit_ical_feed ({user.username})',
+        details='Sincronização/exportação do feed iCal (.ics) de visitas.',
+        user=user,
+        request=request,
+    )
+
+    is_mgr = is_user_manager(user)
     if is_mgr:
         visits = PropertyVisit.objects.all()
     else:
@@ -2078,11 +2423,14 @@ def visit_ical_feed_view(request, token):
     def format_dt(dt):
         return dt.astimezone(dt_timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 
+    def clean_ics_text(val):
+        return str(val or '').replace('\\', '\\\\').replace('\r', '').replace('\n', '\\n').replace(';', '\\;').replace(',', '\\,')
+
     for v in visits:
         prop = v.visit_property
         client = v.lead.client.name if v.lead and v.lead.client else "Cliente"
         phone = v.lead.client.phone if v.lead and v.lead.client else ""
-        
+
         start_str = format_dt(v.scheduled_date)
         end_str = format_dt(v.scheduled_date + timedelta(hours=1))
         created_str = format_dt(v.created_at)
@@ -2091,11 +2439,11 @@ def visit_ical_feed_view(request, token):
         summary = f"Visita: [{prop.code}] {prop.title} - {client}"
         description = (
             f"Visita agendada pelo ImobiCRM\\n"
-            f"Imóvel: {prop.code} - {prop.title}\\n"
-            f"Cliente: {client} ({phone})\\n"
-            f"Ponto de Encontro: {v.meeting_point or 'No imóvel'}\\n"
-            f"Status: {v.get_status_display()}\\n"
-            f"Chave: {v.get_key_status_display()}"
+            f"Imóvel: {clean_ics_text(prop.code)} - {clean_ics_text(prop.title)}\\n"
+            f"Cliente: {clean_ics_text(client)} ({clean_ics_text(phone)})\\n"
+            f"Ponto de Encontro: {clean_ics_text(v.meeting_point or 'No imóvel')}\\n"
+            f"Status: {clean_ics_text(v.get_status_display())}\\n"
+            f"Chave: {clean_ics_text(v.get_key_status_display())}"
         )
 
         lines.extend([
@@ -2104,8 +2452,8 @@ def visit_ical_feed_view(request, token):
             f"DTSTAMP:{created_str}",
             f"DTSTART:{start_str}",
             f"DTEND:{end_str}",
-            f"SUMMARY:{summary}",
-            f"LOCATION:{location}",
+            f"SUMMARY:{clean_ics_text(summary)}",
+            f"LOCATION:{clean_ics_text(location)}",
             f"DESCRIPTION:{description}",
             "STATUS:CONFIRMED",
             "END:VEVENT",
@@ -2117,4 +2465,3 @@ def visit_ical_feed_view(request, token):
     response = HttpResponse(ics_content, content_type='text/calendar; charset=utf-8')
     response['Content-Disposition'] = f'inline; filename="visitas-{user.username}.ics"'
     return response
-

@@ -80,6 +80,24 @@
                     class="w-full px-3 py-2 text-sm border border-slate-300 rounded-md outline-none resize-y"
                     placeholder="Preferências, histórico, detalhes...">{{ contact.notes|default:'' }}</textarea>
         </div>
+
+        <div class="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+          <input type="hidden" name="lgpd_form_present" value="1">
+          <label class="flex items-start gap-2 cursor-pointer">
+            <input type="checkbox" name="lgpd_consent"
+                   {% if not contact or contact.lgpd_consent %}checked{% endif %}
+                   class="mt-0.5 rounded text-primary-900 focus:ring-primary-500">
+            <span class="text-xs text-slate-700">
+              <strong>Consentimento LGPD Ativo:</strong> O titular autorizou o tratamento dos dados pessoais para intermediação imobiliária e contato comercial, conforme a <a href="{% url 'privacy_policy' %}" target="_blank" class="text-[#01125B] underline">Política de Privacidade</a>.
+            </span>
+          </label>
+          <div>
+            <label class="block text-[11px] font-medium text-slate-500 mb-1">Origem / Canal do Consentimento</label>
+            <input type="text" name="lgpd_origin" value="{{ contact.lgpd_origin|default:'cadastro_manual' }}"
+                   class="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-300 rounded-md outline-none"
+                   placeholder="Ex: cadastro_manual, site, whatsapp, contrato">
+          </div>
+        </div>
       </div>
 
       <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2 border-t border-slate-100">

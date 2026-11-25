@@ -315,13 +315,20 @@
 
 </div>
 
+{{ vgv_monthly_labels|json_script:"vgv-monthly-labels-data" }}
+{{ vgv_monthly_data|json_script:"vgv-monthly-values-data" }}
+{{ origins_chart_labels|json_script:"origins-labels-data" }}
+{{ origins_chart_data|json_script:"origins-values-data" }}
+{{ lost_reasons_labels|json_script:"lost-labels-data" }}
+{{ lost_reasons_data|json_script:"lost-values-data" }}
+
 <!-- Scripts de Inicialização dos Gráficos Chart.js -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // 1. Gráfico de Evolução do VGV Mensal (Bar Chart)
     const vgvCtx = document.getElementById('vgvMonthlyChart').getContext('2d');
-    const vgvLabels = {{ vgv_monthly_labels_json|safe }};
-    const vgvData = {{ vgv_monthly_data_json|safe }};
+    const vgvLabels = JSON.parse(document.getElementById('vgv-monthly-labels-data').textContent);
+    const vgvData = JSON.parse(document.getElementById('vgv-monthly-values-data').textContent);
 
     new Chart(vgvCtx, {
         type: 'bar',
@@ -372,8 +379,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 2. Gráfico de Origem dos Leads (Donut Chart)
     const originsCtx = document.getElementById('originsChart').getContext('2d');
-    const originsLabels = {{ origins_chart_labels_json|safe }};
-    const originsData = {{ origins_chart_data_json|safe }};
+    const originsLabels = JSON.parse(document.getElementById('origins-labels-data').textContent);
+    const originsData = JSON.parse(document.getElementById('origins-values-data').textContent);
 
     new Chart(originsCtx, {
         type: 'doughnut',
@@ -404,8 +411,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 3. Gráfico de Motivos de Perda (Horizontal Bar Chart)
     const lostCtx = document.getElementById('lostReasonsChart').getContext('2d');
-    const lostLabels = {{ lost_reasons_labels_json|safe }};
-    const lostData = {{ lost_reasons_data_json|safe }};
+    const lostLabels = JSON.parse(document.getElementById('lost-labels-data').textContent);
+    const lostData = JSON.parse(document.getElementById('lost-values-data').textContent);
 
     new Chart(lostCtx, {
         type: 'bar',

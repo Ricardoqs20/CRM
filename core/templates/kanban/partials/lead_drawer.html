@@ -75,7 +75,19 @@
             <!-- Corretor Responsável & Estágio Atual -->
             <div class="mt-4 pt-3 border-t border-slate-700/60 flex items-center justify-between text-xs text-slate-300">
                 <span>Corretor: <strong class="text-white">{{ lead.agent.get_full_name|default:lead.agent.username|default:"Não atribuído" }}</strong></span>
-                <span class="bg-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold text-emerald-300">{{ lead.stage.name }}</span>
+                <div class="flex items-center gap-2">
+                    {% if is_manager and not lead.client.is_anonymized %}
+                    <form method="POST" action="{% url 'lead_anonymize_lgpd' lead.id %}"
+                          onsubmit="return confirm('Confirmar anonimização LGPD do titular deste lead? Os dados pessoais serão removidos mantendo as métricas do negócio.');">
+                        {% csrf_token %}
+                        <button type="submit" class="bg-red-500/20 hover:bg-red-500/35 text-red-200 border border-red-400/30 px-2 py-0.5 rounded text-[10px] font-semibold transition"
+                                title="Anonimizar Titular (LGPD)">
+                            Anonimizar (LGPD)
+                        </button>
+                    </form>
+                    {% endif %}
+                    <span class="bg-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold text-emerald-300">{{ lead.stage.name }}</span>
+                </div>
             </div>
         </div>
 

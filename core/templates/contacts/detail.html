@@ -31,24 +31,43 @@
         </div>
       </div>
       <div class="flex flex-wrap gap-2">
+        {% if contact.phone %}
         <a href="https://wa.me/55{{ contact.phone|cut:' '|cut:'-'|cut:'('|cut:')' }}" target="_blank"
            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 hover:bg-green-700 text-white">
           <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> WhatsApp
         </a>
+        {% endif %}
         <a href="{% url 'contact_edit' contact.pk %}"
            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50">
           <i data-lucide="pencil" class="w-3.5 h-3.5"></i> Editar
         </a>
+        {% if is_manager %}
+        <a href="{% url 'contact_export_lgpd' contact.pk %}"
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
+           title="Exportar dados pessoais para portabilidade LGPD">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Portabilidade LGPD
+        </a>
+        {% if not contact.is_anonymized %}
+        <form method="POST" action="{% url 'contact_anonymize_lgpd' contact.pk %}"
+              onsubmit="return confirm('Atenção: Esta ação substituirá o nome por Titular Anonimizado #{{ contact.pk }} e limpará telefone, e-mail, CPF/CNPJ e observações pessoais de forma irreversível, mantendo apenas métricas históricas do CRM. Confirmar anonimização LGPD?');">
+          {% csrf_token %}
+          <button type="submit"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition">
+            <i data-lucide="shield-off" class="w-3.5 h-3.5"></i> Anonimizar Titular (LGPD)
+          </button>
+        </form>
+        {% endif %}
+        {% endif %}
         <a href="{% url 'contact_list' %}" class="inline-flex items-center px-3 py-1.5 text-xs text-slate-500 hover:text-slate-800">
           ← Lista
         </a>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5 pt-4 border-t border-slate-100 text-sm">
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-5 pt-4 border-t border-slate-100 text-sm">
       <div>
         <p class="text-[11px] uppercase tracking-wide text-slate-400 font-medium">Telefone</p>
-        <p class="text-slate-800 mt-0.5">{{ contact.phone }}</p>
+        <p class="text-slate-800 mt-0.5">{{ contact.phone|default:"—" }}</p>
         {% if contact.secondary_phone %}<p class="text-slate-500 text-xs">{{ contact.secondary_phone }}</p>{% endif %}
       </div>
       <div>
@@ -56,8 +75,21 @@
         <p class="text-slate-800 mt-0.5">{{ contact.email|default:"—" }}</p>
       </div>
       <div>
-        <p class="text-[11px] uppercase tracking-wide text-slate-400 font-medium">Documento</p>
-        <p class="text-slate-800 mt-0.5">{{ contact.document|default:"—" }}</p>
+        <p class="text-[11px] uppercase tracking-wide text-slate-400 font-medium">Documento (Mascarado)</p>
+        <p class="text-slate-800 mt-0.5 font-mono text-xs">{{ contact.masked_document|default:"—" }}</p>
+      </div>
+      <div>
+        <p class="text-[11px] uppercase tracking-wide text-slate-400 font-medium">Conformidade LGPD</p>
+        {% if contact.is_anonymized %}
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 mt-0.5">Anonimizado</span>
+        {% elif contact.lgpd_consent %}
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 mt-0.5">Consentimento Ativo</span>
+        {% else %}
+        <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 mt-0.5">Revogado / Pendente</span>
+        {% endif %}
+        {% if contact.lgpd_origin %}
+        <p class="text-[11px] text-slate-400 mt-0.5">Origem: {{ contact.lgpd_origin }}{% if contact.lgpd_consent_at %} ({{ contact.lgpd_consent_at|date:"d/m/Y" }}){% endif %}</p>
+        {% endif %}
       </div>
     </div>
 
