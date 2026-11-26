@@ -1024,7 +1024,7 @@ class PortalImporterAndEmptyFeedTestCase(TestCase):
         self.assertIn('text/html', res_html['Content-Type'])
         self.assertContains(res_html, 'Nenhum imóvel disponível para exportação')
         self.assertContains(res_html, 'Cadastrar Imóvel')
-        self.assertContains(res_html, '?format=xml')
+        self.assertNotContains(res_html, 'Visualizar XML bruto')
 
         # Com ?format=xml ou ?raw=1, retorna XML válido vazio
         res_xml = self.client.get(reverse('portal_xml_feed') + '?format=xml', HTTP_ACCEPT='text/html')
