@@ -783,7 +783,7 @@ def visit_schedule_view(request):
         week_offset = 0
     selected_agent = request.GET.get('agent', '')
 
-    today = timezone.now().date()
+    today = timezone.localdate()
     start_of_current_week = today - timedelta(days=today.weekday())
     week_start = start_of_current_week + timedelta(weeks=week_offset)
     week_end = week_start + timedelta(days=6)
@@ -801,7 +801,7 @@ def visit_schedule_view(request):
     days_data = []
     for i in range(7):
         current_day = week_start + timedelta(days=i)
-        day_visits = [v for v in visits_qs if v.scheduled_date.date() == current_day]
+        day_visits = [v for v in visits_qs if timezone.localtime(v.scheduled_date).date() == current_day]
         days_data.append({
             'date': current_day,
             'weekday_name': weekday_names[i],
@@ -1436,8 +1436,10 @@ def dashboard_view(request):
                 'active_leads': ag_active,
                 'visits_month': ag_visits_month,
                 'vgv_won': ag_vgv_won,
+                'vgv_won_formatted': f"R$ {ag_vgv_won:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
                 'conversion_rate': ag_conv_rate,
                 'goal': ag_goal,
+                'goal_formatted': f"R$ {ag_goal:,.0f}".replace(',', '.'),
                 'goal_percent': ag_goal_percent,
             })
 

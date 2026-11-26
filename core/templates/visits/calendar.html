@@ -184,11 +184,11 @@
     <!-- Grade do Calendário Semanal (7 Colunas) -->
     <div class="grid grid-cols-1 md:grid-cols-7 gap-3">
         {% for day in days_data %}
-        <div class="flex flex-col bg-white rounded-2xl border {% if day.is_today %}border-purple-400 ring-2 ring-purple-100 shadow-md{% else %}border-slate-200 shadow-sm{% endif %} min-h-[450px]">
+        <div class="flex flex-col bg-white rounded-2xl border {% if day.is_today %}border-[#01125B]/30 ring-2 ring-[#01125B]/15 shadow-md{% else %}border-slate-200 shadow-sm{% endif %} min-h-[450px]">
             <!-- Cabeçalho do Dia -->
-            <div class="p-3 border-b {% if day.is_today %}bg-purple-600 text-white rounded-t-2xl{% else %}bg-slate-50 text-slate-700 rounded-t-2xl border-slate-100{% endif %} flex items-center justify-between">
+            <div class="p-3 border-b {% if day.is_today %}bg-[#01125B] text-white rounded-t-2xl border-[#01125B]{% else %}bg-slate-50 text-slate-700 rounded-t-2xl border-slate-100{% endif %} flex items-center justify-between">
                 <div>
-                    <span class="text-[11px] font-bold uppercase tracking-wider block {% if day.is_today %}text-purple-100{% else %}text-slate-500{% endif %}">
+                    <span class="text-[11px] font-bold uppercase tracking-wider block {% if day.is_today %}text-blue-200{% else %}text-slate-500{% endif %}">
                         {{ day.weekday_name }}
                     </span>
                     <span class="text-base font-black">
@@ -222,7 +222,9 @@
              class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 relative animate-in fade-in zoom-in duration-200">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div class="flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">⭐</span>
+                    <span class="w-8 h-8 rounded-lg bg-slate-100 text-[#01125B] flex items-center justify-center font-bold text-sm">
+                        <i data-lucide="star" class="w-4 h-4"></i>
+                    </span>
                     <div>
                         <h3 class="text-base font-bold text-slate-800">Registrar Feedback da Visita</h3>
                         <p class="text-xs text-slate-500">Parecer do cliente e encaminhamento no funil</p>
@@ -247,7 +249,9 @@
              class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-200 relative animate-in fade-in zoom-in duration-200">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div class="flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-sm">📅</span>
+                    <span class="w-8 h-8 rounded-lg bg-slate-100 text-[#01125B] flex items-center justify-center font-bold text-sm">
+                        <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+                    </span>
                     <div>
                         <h3 class="text-base font-bold text-slate-800">Agendar Visita a Imóvel</h3>
                         <p class="text-xs text-slate-500">Selecione o lead e o imóvel do catálogo</p>
@@ -262,7 +266,7 @@
                 {% csrf_token %}
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">Lead / Cliente Interessado *</label>
-                    <select name="lead_id" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                    <select name="lead_id" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[#01125B]">
                         <option value="">Selecione o Lead...</option>
                         {% for ld in active_leads %}
                         <option value="{{ ld.id }}">{{ ld.client.name }} — {{ ld.title|truncatechars:35 }}</option>
@@ -272,7 +276,7 @@
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">Imóvel do Catálogo *</label>
-                    <select name="property_id" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                    <select name="property_id" required class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[#01125B]">
                         <option value="">Selecione o Imóvel...</option>
                         {% for prop in available_properties %}
                         <option value="{{ prop.id }}">[{{ prop.code }}] {{ prop.title|truncatechars:35 }} - {{ prop.neighborhood }}</option>
@@ -284,11 +288,11 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Data e Hora *</label>
                         <input type="datetime-local" name="scheduled_date" required 
-                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[#01125B]">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Corretor Responsável</label>
-                        <select name="agent_id" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                        <select name="agent_id" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[#01125B]">
                             {% for ag in agents %}
                             <option value="{{ ag.id }}" {% if ag.id == request.user.id %}selected{% endif %}>
                                 {{ ag.get_full_name|default:ag.username }}
@@ -301,12 +305,12 @@
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">Ponto de Encontro</label>
                     <input type="text" name="meeting_point" value="No próprio imóvel" placeholder="Ex: Portaria do edifício" 
-                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                           class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[#01125B]">
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">Status Inicial da Chave</label>
-                    <select name="key_status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-500">
+                    <select name="key_status" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[#01125B]">
                         <option value="concierge">Chave na Portaria do Condomínio</option>
                         <option value="with_owner">Proprietário Recebe no Local</option>
                         <option value="at_agency">Chave Disponível na Imobiliária</option>
@@ -316,7 +320,7 @@
 
                 <div class="flex justify-end gap-2 pt-4 border-t border-slate-100">
                     <button type="button" @click="scheduleModalOpen = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
-                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 rounded-lg shadow">Agendar Visita</button>
+                    <button type="submit" class="px-4 py-2 text-xs font-bold text-white bg-[#01125B] hover:bg-primary-800 rounded-lg shadow">Agendar Visita</button>
                 </div>
             </form>
         </div>
