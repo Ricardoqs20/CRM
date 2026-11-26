@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path('dashboard/meta/', views.update_monthly_goal_view, name='update_monthly_goal'),
+    path('properties/import-url/', views.property_import_url_view, name='property_import_url'),
     path('privacidade/', views.privacy_policy_view, name='privacy_policy'),
     path('contatos/<int:person_id>/preferencias/', views.client_preferences_save_view, name='client_preferences_save'),
     path('contatos/<int:pk>/anonimizar/', views.contact_anonymize_lgpd_view, name='contact_anonymize_lgpd'),

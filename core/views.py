@@ -626,6 +626,56 @@ def property_create_view(request):
 
 
 @login_required(login_url='crm_login')
+@rate_limit('property_import_url', 30, 60, methods=('POST',), scope='user_or_ip')
+def property_import_url_view(request):
+    """Importador assistido multi-portal (OLX, VivaReal, ZAP, Imovelweb e demais anúncios)."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Método não permitido. Utilize POST.'}, status=405)
+
+    target_url = ''
+    if request.content_type == 'application/json' and request.body:
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            target_url = str(body.get('url') or '').strip()
+        except Exception:
+            target_url = ''
+    if not target_url:
+        target_url = str(request.POST.get('url') or '').strip()
+
+    from .services.portal_importer import SSRFBlockedError, fetch_and_extract_property
+
+    try:
+        result = fetch_and_extract_property(target_url)
+    except SSRFBlockedError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=400)
+    except RuntimeError as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=422)
+
+    found = result.get('found_fields') or []
+    missing = result.get('missing_fields') or []
+    domain = result.get('source_domain') or 'portal externo'
+
+    if found:
+        msg = f"Dados importados de {domain}: {', '.join(found)}."
+        if missing:
+            msg += f" Confira/preencha manualmente: {', '.join(missing)}."
+    else:
+        msg = (
+            f"O link de {domain} não expôs metadados estruturados automaticamente. "
+            "Preencha os campos do imóvel manualmente abaixo."
+        )
+
+    return JsonResponse({
+        'success': True,
+        'source_domain': domain,
+        'data': result['data'],
+        'found_fields': found,
+        'missing_fields': missing,
+        'message': msg,
+    })
+
+
+@login_required(login_url='crm_login')
 def property_edit_view(request, pk):
     """Edição Completa de Imóvel (restrita ao captador ou gestor/admin)"""
     prop = get_object_or_404(Property, pk=pk)
@@ -1675,6 +1725,14 @@ def portal_xml_feed_view(request):
     properties = Property.objects.filter(
         status='available'
     ).prefetch_related('images').select_related('captured_by').order_by('code')
+
+    force_raw_xml = (
+        request.GET.get('format', '').lower() == 'xml'
+        or request.GET.get('raw', '') == '1'
+    )
+    accept_header = request.headers.get('Accept', '')
+    if not force_raw_xml and 'text/html' in accept_header and not properties.exists():
+        return render(request, 'properties/feed_empty.html')
 
     log_security_event(
         action='data_export',

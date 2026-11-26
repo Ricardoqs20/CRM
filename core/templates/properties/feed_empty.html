@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Feed XML para Portais - ImobiCRM{% endblock %}
+{% block header_title %}
+<span class="flex items-center gap-2">
+    <span class="p-1.5 rounded-lg bg-slate-100 text-[#01125B] flex items-center justify-center">
+        <i data-lucide="rss" class="w-4 h-4"></i>
+    </span>
+    <span>Feed XML para Portais Imobiliários</span>
+</span>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-8">
+    <div class="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs text-center space-y-5">
+        <div class="w-14 h-14 rounded-2xl bg-slate-100 text-[#01125B] flex items-center justify-center mx-auto">
+            <i data-lucide="building-2" class="w-7 h-7"></i>
+        </div>
+
+        <div class="space-y-2">
+            <h2 class="text-lg font-bold text-slate-900">Nenhum imóvel disponível para exportação</h2>
+            <p class="text-xs sm:text-sm text-slate-500 leading-relaxed max-w-lg mx-auto">
+                O feed XML dos portais (ZAP, VivaReal, OLX e Imovelweb) exporta automaticamente todos os imóveis com status
+                <strong class="text-slate-700">Disponível</strong>, omitindo dados pessoais de proprietários e comissões.
+            </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <a href="{% url 'property_create' %}"
+               class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#01125B] hover:bg-primary-800 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-xs transition">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>Cadastrar Imóvel</span>
+            </a>
+            <a href="?format=xml"
+               class="w-full sm:w-auto inline-flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-xl transition">
+                <i data-lucide="code-2" class="w-4 h-4"></i>
+                <span>Visualizar XML bruto</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

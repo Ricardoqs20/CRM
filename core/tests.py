@@ -913,5 +913,132 @@ class MonthlyGoalAndBRLFormattingTestCase(TestCase):
         self.assertEqual(brl_int_filter(Decimal('1250000.75')), '1.250.001')
 
 
+class PortalImporterAndEmptyFeedTestCase(TestCase):
+    """Testes para o importador assistido multi-portal (Anti-SSRF) e feed XML vazio."""
+
+    def setUp(self):
+        self.client = Client()
+        self.agent = User.objects.create_user(username='corretor_import', password='123')
+        UserProfile.objects.create(user=self.agent, role='agent')
+
+    def test_import_url_blocks_ssrf_targets(self):
+        from unittest.mock import patch
+        import socket
+
+        self.client.force_login(self.agent)
+        url = reverse('property_import_url')
+
+        blocked_urls = [
+            'http://localhost:8000/admin/',
+            'http://127.0.0.1/secret',
+            'http://169.254.169.254/latest/meta-data/',
+            'http://10.0.0.1/internal',
+            'ftp://olx.com.br/imovel',
+        ]
+        for bad_url in blocked_urls:
+            res = self.client.post(url, data=json.dumps({'url': bad_url}), content_type='application/json')
+            self.assertEqual(res.status_code, 400, f'Deveria bloquear {bad_url}')
+            self.assertFalse(res.json()['success'])
+
+        # Domínio que resolve via DNS para IP privado também deve ser bloqueado
+        with patch('core.services.portal_importer.socket.getaddrinfo') as mock_dns:
+            mock_dns.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('192.168.1.50', 443))]
+            res = self.client.post(
+                url,
+                data=json.dumps({'url': 'https://interno.exemplo.com/anuncio'}),
+                content_type='application/json',
+            )
+            self.assertEqual(res.status_code, 400)
+            self.assertFalse(res.json()['success'])
+
+    def test_import_url_extracts_json_ld_and_open_graph(self):
+        from unittest.mock import MagicMock, patch
+        import socket
+
+        sample_html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Apartamento no Renascença</title>
+            <meta property="og:title" content="Apartamento 3 quartos com 2 suítes no Renascença">
+            <meta property="og:description" content="Excelente imóvel com 120 m² e 2 vagas de garagem por R$ 850.000,00.">
+            <meta property="og:image" content="https://cdn.exemplo.com/foto-capa.jpg">
+            <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "Apartment",
+                "name": "Apartamento Luxo Renascença",
+                "numberOfBedrooms": 3,
+                "numberOfBathroomsTotal": 3,
+                "floorSize": {"@type": "QuantitativeValue", "value": "120"},
+                "address": {"@type": "PostalAddress", "addressLocality": "Renascença"},
+                "offers": {"@type": "Offer", "price": "850000.00"}
+            }
+            </script>
+        </head>
+        <body></body>
+        </html>
+        """
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = sample_html.encode('utf-8')
+        mock_resp.headers.get_content_charset.return_value = 'utf-8'
+        mock_resp.geturl.return_value = 'https://www.zapimoveis.com.br/imovel/teste-123/'
+        mock_resp.__enter__.return_value = mock_resp
+        mock_resp.__exit__.return_value = False
+
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_resp
+
+        self.client.force_login(self.agent)
+        with patch('core.services.portal_importer.socket.getaddrinfo') as mock_dns, \
+             patch('core.services.portal_importer.urllib.request.build_opener', return_value=mock_opener):
+            mock_dns.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, '', ('93.184.216.34', 443))]
+            res = self.client.post(
+                reverse('property_import_url'),
+                data=json.dumps({'url': 'https://www.zapimoveis.com.br/imovel/teste-123/'}),
+                content_type='application/json',
+            )
+
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertTrue(body['success'])
+        self.assertEqual(body['source_domain'], 'zapimoveis.com.br')
+        self.assertEqual(body['data']['title'], 'Apartamento Luxo Renascença')
+        self.assertEqual(body['data']['price_formatted'], '850.000')
+        self.assertEqual(body['data']['bedrooms'], 3)
+        self.assertEqual(body['data']['suites'], 2)
+        self.assertEqual(body['data']['bathrooms'], 3)
+        self.assertEqual(body['data']['parking_spaces'], 2)
+        self.assertEqual(body['data']['area_m2'], '120')
+        self.assertEqual(body['data']['neighborhood'], 'Renascença')
+        self.assertEqual(body['data']['image_url'], 'https://cdn.exemplo.com/foto-capa.jpg')
+
+    def test_empty_portal_xml_feed_html_vs_raw_xml(self):
+        # Garante zero imóveis disponíveis
+        Property.objects.all().delete()
+
+        # Navegador acessando diretamente recebe página HTML amigável
+        res_html = self.client.get(reverse('portal_xml_feed'), HTTP_ACCEPT='text/html,application/xhtml+xml')
+        self.assertEqual(res_html.status_code, 200)
+        self.assertIn('text/html', res_html['Content-Type'])
+        self.assertContains(res_html, 'Nenhum imóvel disponível para exportação')
+        self.assertContains(res_html, 'Cadastrar Imóvel')
+        self.assertContains(res_html, '?format=xml')
+
+        # Com ?format=xml ou ?raw=1, retorna XML válido vazio
+        res_xml = self.client.get(reverse('portal_xml_feed') + '?format=xml', HTTP_ACCEPT='text/html')
+        self.assertEqual(res_xml.status_code, 200)
+        self.assertEqual(res_xml['Content-Type'], 'application/xml; charset=utf-8')
+        self.assertIn('<Carga', res_xml.content.decode('utf-8'))
+        self.assertIn('<Imoveis>', res_xml.content.decode('utf-8'))
+
+        # Acesso programático sem Accept: text/html também recebe XML válido
+        res_bot = self.client.get(reverse('portal_xml_feed'))
+        self.assertEqual(res_bot.status_code, 200)
+        self.assertEqual(res_bot['Content-Type'], 'application/xml; charset=utf-8')
+
+
+
 
 

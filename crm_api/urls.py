@@ -10,6 +10,7 @@ from core.views import (
     lead_anonymize_lgpd_view,
     property_list_view, property_detail_view,
     property_create_view, property_edit_view, property_quick_create_view,
+    property_import_url_view,
     visit_schedule_view, visit_schedule_create_view, visit_create_from_lead_view,
     visit_feedback_form_view, visit_feedback_save_view, visit_key_action_view,
     visit_whatsapp_confirm_view,
@@ -58,6 +59,7 @@ urlpatterns = [
     path('properties/', property_list_view, name='property_list'),
     path('properties/new/', property_create_view, name='property_create'),
     path('properties/quick/', property_quick_create_view, name='property_quick_create'),
+    path('properties/import-url/', property_import_url_view, name='property_import_url'),
     path('properties/<int:pk>/', property_detail_view, name='property_detail'),
     path('properties/<int:pk>/edit/', property_edit_view, name='property_edit'),
 

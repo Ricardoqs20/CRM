@@ -24,6 +24,111 @@
         <form method="POST" enctype="multipart/form-data" class="space-y-6">
             {% csrf_token %}
 
+            <!-- Importador Assistido Multi-Portal -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3"
+                 x-data="{
+                     importUrl: '',
+                     loading: false,
+                     feedback: '',
+                     feedbackType: '',
+                     previewImage: '',
+                     async importFromPortal() {
+                         if (!this.importUrl.trim()) {
+                             this.feedbackType = 'error';
+                             this.feedback = 'Cole o link completo do anúncio (ex.: OLX, VivaReal, ZAP).';
+                             return;
+                         }
+                         this.loading = true;
+                         this.feedback = '';
+                         try {
+                             const resp = await fetch('{% url 'property_import_url' %}', {
+                                 method: 'POST',
+                                 headers: {
+                                     'Content-Type': 'application/json',
+                                     'X-CSRFToken': '{{ csrf_token }}'
+                                 },
+                                 body: JSON.stringify({ url: this.importUrl.trim() })
+                             });
+                             const payload = await resp.json();
+                             if (!resp.ok || !payload.success) {
+                                 this.feedbackType = 'error';
+                                 this.feedback = payload.error || 'Não foi possível importar este link automaticamente.';
+                                 return;
+                             }
+                             const d = payload.data || {};
+                             const setVal = (name, val) => {
+                                 if (val === null || val === undefined || val === '') return;
+                                 const el = document.querySelector(`[name='${name}']`);
+                                 if (el) el.value = val;
+                             };
+                             setVal('title', d.title);
+                             setVal('description', d.description);
+                             setVal('neighborhood', d.neighborhood);
+                             setVal('bedrooms', d.bedrooms);
+                             setVal('suites', d.suites);
+                             setVal('bathrooms', d.bathrooms);
+                             setVal('parking_spaces', d.parking_spaces);
+                             setVal('usable_area', d.area_m2);
+                             if (d.transaction_type) setVal('transaction_type', d.transaction_type);
+                             if (d.price_formatted) {
+                                 const priceField = d.transaction_type === 'rent' ? 'rental_price' : 'sale_price';
+                                 const el = document.querySelector(`[name='${priceField}']`);
+                                 if (el) {
+                                     el.value = typeof formatMoneyInputString === 'function'
+                                         ? formatMoneyInputString(d.price_formatted)
+                                         : d.price_formatted;
+                                 }
+                             }
+                             this.previewImage = d.image_url || '';
+                             this.feedbackType = 'success';
+                             this.feedback = payload.message || 'Dados preenchidos para revisão.';
+                         } catch (err) {
+                             this.feedbackType = 'error';
+                             this.feedback = 'Erro de conexão ao tentar importar o anúncio.';
+                         } finally {
+                             this.loading = false;
+                         }
+                     }
+                 }">
+                <div class="flex items-center justify-between gap-2">
+                    <div>
+                        <h3 class="text-xs font-bold text-[#01125B] uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="link" class="w-3.5 h-3.5"></i>
+                            <span>Importação Assistida de Anúncio</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Cole o link de um anúncio para preencher os campos automaticamente e revisar antes de salvar.</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="url"
+                           x-model="importUrl"
+                           @keydown.enter.prevent="importFromPortal()"
+                           placeholder="Link do anúncio (OLX, VivaReal, ZAP, etc.)"
+                           class="flex-1 px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-[#01125B]">
+                    <button type="button"
+                            @click="importFromPortal()"
+                            :disabled="loading"
+                            class="px-4 py-2 text-xs font-bold text-white bg-[#01125B] hover:bg-primary-800 disabled:opacity-60 rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <i data-lucide="download-cloud" class="w-3.5 h-3.5" x-show="!loading"></i>
+                        <span x-text="loading ? 'Importando...' : 'Importar Link'"></span>
+                    </button>
+                </div>
+
+                <template x-if="feedback">
+                    <div :class="feedbackType === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'"
+                         class="px-3 py-2 rounded-lg border text-xs font-medium"
+                         x-text="feedback"></div>
+                </template>
+
+                <template x-if="previewImage">
+                    <div class="flex items-center gap-3 pt-1">
+                        <img :src="previewImage" alt="Pré-visualização do anúncio" class="w-16 h-12 object-cover rounded-lg border border-slate-200 bg-white">
+                        <span class="text-[11px] text-slate-500">Imagem de capa detectada no anúncio (faça o upload das fotos definitivas na seção 6 se desejar).</span>
+                    </div>
+                </template>
+            </div>
+
             <!-- Seção 1: Identificação Básica -->
             <div>
                 <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">1. Identificação & Tipo</h3>
