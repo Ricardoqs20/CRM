@@ -26,7 +26,7 @@
      }">
 
     <!-- Barra Superior de Filtros do Funil -->
-    <div class="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex-shrink-0 mt-2 md:mt-0 sticky top-[calc(3.5rem+env(safe-area-inset-top,0px)+0.5rem)] md:static z-20">
+    <div class="bg-white rounded-xl p-3.5 shadow-xs border border-slate-200 flex-shrink-0 relative z-10 mb-4">
         <form id="kanban-filter-form" 
               hx-get="{% url 'kanban' %}" 
               hx-trigger="keyup changed delay:300ms from:input, change from:select" 
