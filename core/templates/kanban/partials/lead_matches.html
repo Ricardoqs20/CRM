@@ -1,3 +1,4 @@
+{% load crm_filters %}
 <!-- Seção de Match Automático: Imóveis Compatíveis com o Lead -->
 <div id="lead-matches-container" class="space-y-3">
     
@@ -40,8 +41,8 @@
                     <p class="text-[11px] text-slate-500">📍 {{ item.property.neighborhood }} • 🛏️ {{ item.property.bedrooms }} qts • 📐 {{ item.property.usable_area|floatformat:0 }}m²</p>
                 </div>
 
-                <span class="text-xs font-black text-emerald-700 whitespace-nowrap">
-                    R$ {{ item.property.sale_price }}
+                <span class="text-xs font-black text-emerald-700 whitespace-nowrap tabular-nums">
+                    R$ {{ item.property.sale_price|brl }}
                 </span>
             </div>
 

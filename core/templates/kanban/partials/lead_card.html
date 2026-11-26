@@ -1,3 +1,4 @@
+{% load crm_filters %}
 <!-- Card de Lead Imobiliário -->
 <div id="lead-card-{{ lead.id }}" 
      draggable="true" 
@@ -69,7 +70,7 @@
     <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
         <div>
             <span class="text-[10px] text-slate-400 block leading-none">Orçamento / VGV</span>
-            <span class="text-xs font-bold text-slate-900 tabular-nums">R$ {{ lead.budget|floatformat:2 }}</span>
+            <span class="text-xs font-bold text-slate-900 tabular-nums">R$ {{ lead.budget|brl }}</span>
         </div>
 
         <div class="flex items-center gap-1.5">

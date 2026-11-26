@@ -1,3 +1,4 @@
+{% load crm_filters %}
 <!-- Quadro Kanban com Colunas Responsivas -->
 <div class="flex gap-4 overflow-x-auto pb-6 items-start select-none snap-x snap-mandatory md:snap-none">
     {% for stage in stages %}
@@ -21,7 +22,7 @@
             <!-- Resumo Financeiro Acumulado na Coluna (VGV Potencial) -->
             <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1">
                 <span>VGV Acumulado:</span>
-                <span class="font-bold text-slate-800 tabular-nums">R$ {{ stage.total_budget|floatformat:2 }}</span>
+                <span class="font-bold text-slate-800 tabular-nums">R$ {{ stage.total_budget|brl }}</span>
             </div>
         </div>
 

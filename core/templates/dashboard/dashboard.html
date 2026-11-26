@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load crm_filters %}
 
 {% block title %}Painel de Indicadores & BI - ImobiCRM{% endblock %}
 
@@ -17,7 +18,19 @@
 {% endblock %}
 
 {% block content %}
-<div class="space-y-6 max-w-7xl mx-auto">
+<div class="space-y-6 max-w-7xl mx-auto"
+     x-data="{
+         goalModalOpen: false,
+         goalUserId: '{{ target_agent_id|default:request.user.id }}',
+         goalUserName: '{{ target_agent_name|default:request.user.username|escapejs }}',
+         goalValue: '{{ meta_mensal_input|default:'' }}',
+         openGoalModal(userId, userName, currentVal) {
+             this.goalUserId = userId;
+             this.goalUserName = userName;
+             this.goalValue = currentVal || '';
+             this.goalModalOpen = true;
+         }
+     }">
 
     <!-- Topo: Filtros & Controle de Período -->
     <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
@@ -78,11 +91,32 @@
                         <i data-lucide="trending-up" class="w-4 h-4"></i>
                     </span>
                 </div>
-                <h3 class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">R$ {{ vgv_fechado_mes|floatformat:2 }}</h3>
-                <p class="text-[11px] text-slate-500 mt-0.5">Meta: <strong class="tabular-nums">R$ {{ meta_mensal|floatformat:0 }}</strong></p>
+                <h3 class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">R$ {{ vgv_fechado_mes|brl }}</h3>
+                <div class="flex items-center justify-between gap-2 mt-1">
+                    {% if has_meta_mensal %}
+                    <p class="text-[11px] text-slate-500">Meta: <strong class="tabular-nums text-slate-700">R$ {{ meta_mensal|brl }}</strong></p>
+                    {% if can_edit_meta %}
+                    <button type="button"
+                            @click="openGoalModal('{{ target_agent_id }}', '{{ target_agent_name|escapejs }}', '{{ meta_mensal_input|escapejs }}')"
+                            class="inline-flex items-center gap-1 text-[11px] font-semibold text-[#01125B] hover:underline">
+                        <i data-lucide="pencil" class="w-3 h-3"></i> Editar
+                    </button>
+                    {% endif %}
+                    {% else %}
+                    <p class="text-[11px] text-slate-400">Meta não definida</p>
+                    {% if can_edit_meta %}
+                    <button type="button"
+                            @click="openGoalModal('{{ target_agent_id }}', '{{ target_agent_name|escapejs }}', '')"
+                            class="inline-flex items-center gap-1 text-[11px] font-bold text-[#01125B] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-lg transition">
+                        Definir Meta
+                    </button>
+                    {% endif %}
+                    {% endif %}
+                </div>
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100">
+                {% if has_meta_mensal %}
                 <div class="flex items-center justify-between text-xs mb-1">
                     <span class="text-slate-600 font-bold">Meta Atingida</span>
                     <span class="font-semibold text-slate-700 tabular-nums">{{ meta_progress_percent }}%</span>
@@ -91,6 +125,12 @@
                     <div class="bg-[#01125B] h-2 rounded-full transition-all duration-500" 
                          style="width: {{ meta_progress_percent }}%"></div>
                 </div>
+                {% else %}
+                <div class="flex items-center justify-between text-xs text-slate-400">
+                    <span>Progresso da Meta</span>
+                    <span>—</span>
+                </div>
+                {% endif %}
             </div>
         </div>
 
@@ -103,13 +143,13 @@
                         <i data-lucide="dollar-sign" class="w-4 h-4"></i>
                     </span>
                 </div>
-                <h3 class="text-2xl font-bold text-[#01125B] mt-1 tabular-nums">R$ {{ comissao_realizada|floatformat:2 }}</h3>
-                <p class="text-[11px] text-slate-500 mt-0.5">Em Negociação: <strong class="tabular-nums">R$ {{ comissao_prevista|floatformat:2 }}</strong></p>
+                <h3 class="text-2xl font-bold text-[#01125B] mt-1 tabular-nums">R$ {{ comissao_realizada|brl }}</h3>
+                <p class="text-[11px] text-slate-500 mt-0.5">Em Negociação: <strong class="tabular-nums">R$ {{ comissao_prevista|brl }}</strong></p>
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                 <span>VGV no Funil:</span>
-                <span class="font-bold text-slate-900 tabular-nums">R$ {{ vgv_pipeline|floatformat:2 }}</span>
+                <span class="font-bold text-slate-900 tabular-nums">R$ {{ vgv_pipeline|brl }}</span>
             </div>
         </div>
 
@@ -123,14 +163,14 @@
                     </span>
                 </div>
                 <h3 class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
-                    {% if ticket_medio > 0 %}R$ {{ ticket_medio|floatformat:2 }}{% else %}R$ 0,00{% endif %}
+                    {% if ticket_medio > 0 %}R$ {{ ticket_medio|brl }}{% else %}R$ 0{% endif %}
                 </h3>
                 <p class="text-[11px] text-slate-500 mt-0.5">Média por imóvel negociado</p>
             </div>
 
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
                 <span>Vendas no Mês:</span>
-                <span class="font-bold text-slate-800 tabular-nums">R$ {{ vgv_vendas_mes|floatformat:0 }}</span>
+                <span class="font-bold text-slate-800 tabular-nums">R$ {{ vgv_vendas_mes|brl_int }}</span>
             </div>
         </div>
 
@@ -298,15 +338,38 @@
                             {{ item.conversion_rate }}%
                         </td>
                         <td class="py-3 px-4 min-w-[180px] whitespace-nowrap">
+                            {% if item.has_goal %}
                             <div class="space-y-1">
                                 <div class="flex items-center justify-between gap-3 text-[11px]">
                                     <span class="text-slate-600 font-semibold tabular-nums">{{ item.goal_percent }}%</span>
-                                    <span class="text-slate-500 font-medium tabular-nums">{{ item.goal_formatted }}</span>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-slate-600 font-medium tabular-nums">{{ item.goal_formatted }}</span>
+                                        {% if is_manager or item.agent.id == request.user.id %}
+                                        <button type="button"
+                                                @click="openGoalModal('{{ item.agent.id }}', '{{ item.agent.get_full_name|default:item.agent.username|escapejs }}', '{{ item.goal_input|escapejs }}')"
+                                                class="text-slate-400 hover:text-[#01125B] transition"
+                                                title="Editar Meta">
+                                            <i data-lucide="pencil" class="w-3 h-3"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
                                 </div>
                                 <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                     <div class="bg-[#01125B] h-1.5 rounded-full" style="width: {{ item.goal_percent }}%"></div>
                                 </div>
                             </div>
+                            {% else %}
+                            <div class="flex items-center justify-between gap-2 text-[11px]">
+                                <span class="text-slate-400">Meta não definida</span>
+                                {% if is_manager or item.agent.id == request.user.id %}
+                                <button type="button"
+                                        @click="openGoalModal('{{ item.agent.id }}', '{{ item.agent.get_full_name|default:item.agent.username|escapejs }}', '')"
+                                        class="px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-[#01125B] hover:text-white text-[#01125B] font-semibold transition">
+                                    Definir Meta
+                                </button>
+                                {% endif %}
+                            </div>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -352,19 +415,90 @@
                 </div>
 
                 <div class="pt-1 space-y-1.5">
+                    {% if item.has_goal %}
                     <div class="flex items-center justify-between text-[11px]">
                         <span class="font-semibold text-slate-600 tabular-nums">Meta do Mês ({{ item.goal_percent }}%)</span>
-                        <span class="font-bold text-slate-800 tabular-nums">{{ item.goal_formatted }}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-slate-800 tabular-nums">{{ item.goal_formatted }}</span>
+                            {% if is_manager or item.agent.id == request.user.id %}
+                            <button type="button"
+                                    @click="openGoalModal('{{ item.agent.id }}', '{{ item.agent.get_full_name|default:item.agent.username|escapejs }}', '{{ item.goal_input|escapejs }}')"
+                                    class="text-[#01125B] font-semibold hover:underline">
+                                Editar
+                            </button>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="w-full bg-slate-200/80 rounded-full h-2 overflow-hidden">
                         <div class="bg-[#01125B] h-2 rounded-full" style="width: {{ item.goal_percent }}%"></div>
                     </div>
+                    {% else %}
+                    <div class="flex items-center justify-between text-[11px]">
+                        <span class="text-slate-400 font-medium">Meta não definida</span>
+                        {% if is_manager or item.agent.id == request.user.id %}
+                        <button type="button"
+                                @click="openGoalModal('{{ item.agent.id }}', '{{ item.agent.get_full_name|default:item.agent.username|escapejs }}', '')"
+                                class="px-2.5 py-1 rounded-lg bg-[#01125B] text-white font-bold text-[11px]">
+                            Definir Meta
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
         </div>
     </div>
     {% endif %}
+
+    <!-- Modal Alpine.js: Definir / Editar Meta Mensal -->
+    <div x-show="goalModalOpen" x-cloak
+         class="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-xs p-0 sm:p-4">
+        <div @click.away="goalModalOpen = false"
+             class="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl max-w-md w-full p-5 sm:p-6 border border-slate-200 safe-bottom">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">Definir Meta do Mês</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Corretor: <strong class="text-slate-700" x-text="goalUserName"></strong></p>
+                </div>
+                <button type="button" @click="goalModalOpen = false" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form method="POST" action="{% url 'update_monthly_goal' %}" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="user_id" :value="goalUserId">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">Meta Mensal de VGV (R$)</label>
+                    <div class="relative">
+                        <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">R$</span>
+                        <input type="text"
+                               inputmode="numeric"
+                               data-money-input
+                               name="monthly_goal"
+                               x-model="goalValue"
+                               placeholder="Ex: 500.000"
+                               class="w-full pl-9 pr-3 py-2.5 text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#01125B] outline-none tabular-nums">
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1.5">Deixe vazio ou 0 para remover a meta definida.</p>
+                </div>
+
+                <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-3 border-t border-slate-100">
+                    <button type="button" @click="goalModalOpen = false"
+                            class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 text-xs font-bold text-white bg-[#01125B] hover:bg-primary-800 rounded-xl shadow-xs transition">
+                        Salvar Meta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
 </div>
 

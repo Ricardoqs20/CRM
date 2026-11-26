@@ -1,3 +1,4 @@
+{% load crm_filters %}
 {% if view_mode == 'table' %}
 <!-- Visualização em Tabela / Lista Compacta -->
 <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -45,9 +46,9 @@
                     </td>
                     <td class="px-4 py-3 font-bold tabular-nums text-[#01125B]">
                         {% if prop.sale_price > 0 %}
-                        R$ {{ prop.sale_price }}
+                        R$ {{ prop.sale_price|brl }}
                         {% else %}
-                        R$ {{ prop.rental_price }}/mês
+                        R$ {{ prop.rental_price|brl }}/mês
                         {% endif %}
                     </td>
                     <td class="px-4 py-3 text-center text-xs text-slate-500 hidden lg:table-cell">
@@ -161,10 +162,10 @@
                 <!-- Preço Principal -->
                 <div class="mt-3 flex items-baseline gap-2">
                     {% if prop.sale_price > 0 %}
-                    <span class="text-lg font-extrabold tabular-nums text-[#01125B]">R$ {{ prop.sale_price }}</span>
+                    <span class="text-lg font-extrabold tabular-nums text-[#01125B]">R$ {{ prop.sale_price|brl }}</span>
                     <span class="text-xs text-slate-400">Venda</span>
                     {% elif prop.rental_price > 0 %}
-                    <span class="text-lg font-extrabold tabular-nums text-slate-800">R$ {{ prop.rental_price }}</span>
+                    <span class="text-lg font-extrabold tabular-nums text-slate-800">R$ {{ prop.rental_price|brl }}</span>
                     <span class="text-xs text-slate-400">/mês</span>
                     {% endif %}
                 </div>

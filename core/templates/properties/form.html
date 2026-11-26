@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load crm_filters %}
 
 {% block title %}{% if property %}Editar Imóvel {{ property.code }}{% else %}Novo Imóvel (Ficha Completa){% endif %} - IMOBICRM{% endblock %}
 {% block header_title %}🏠 {% if property %}Editar Imóvel: <span class="font-mono text-emerald-600 ml-1">{{ property.code }}</span>{% else %}Cadastrar Novo Imóvel{% endif %}{% endblock %}
@@ -72,23 +73,23 @@
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Valor Venda (R$)</label>
-                        <input type="number" step="0.01" name="sale_price" value="{{ property.sale_price|default:'0.00' }}"
-                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none">
+                        <input type="text" inputmode="numeric" data-money-input name="sale_price" value="{{ property.sale_price|brl_input }}" placeholder="0"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none tabular-nums">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Valor Locação (R$)</label>
-                        <input type="number" step="0.01" name="rental_price" value="{{ property.rental_price|default:'0.00' }}"
-                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none">
+                        <input type="text" inputmode="numeric" data-money-input name="rental_price" value="{{ property.rental_price|brl_input }}" placeholder="0"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none tabular-nums">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Condomínio (R$)</label>
-                        <input type="number" step="0.01" name="condo_fee" value="{{ property.condo_fee|default:'0.00' }}"
-                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none">
+                        <input type="text" inputmode="numeric" data-money-input name="condo_fee" value="{{ property.condo_fee|brl_input }}" placeholder="0"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none tabular-nums">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">IPTU (R$)</label>
-                        <input type="number" step="0.01" name="iptu" value="{{ property.iptu|default:'0.00' }}"
-                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none">
+                        <input type="text" inputmode="numeric" data-money-input name="iptu" value="{{ property.iptu|brl_input }}" placeholder="0"
+                               class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg outline-none tabular-nums">
                     </div>
                 </div>
             </div>

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load crm_filters %}
 
 {% block title %}[{{ property.code }}] {{ property.title }} - IMOBICRM{% endblock %}
 {% block header_title %}🏠 Ficha do Imóvel: <span class="font-mono text-emerald-600 ml-1">{{ property.code }}</span>{% endblock %}
@@ -100,7 +101,7 @@
 
                             <p class="text-xs text-slate-600 font-medium">{{ m.lead.title }}</p>
                             <p class="text-[11px] text-slate-500 mt-0.5">
-                                Orçamento: <strong class="text-slate-800">R$ {{ m.lead.budget|floatformat:0 }}</strong> • Corretor: <strong>{% if m.lead.agent %}{{ m.lead.agent.get_full_name|default:m.lead.agent.username }}{% else %}—{% endif %}</strong>
+                                Orçamento: <strong class="text-slate-800 tabular-nums">R$ {{ m.lead.budget|brl }}</strong> • Corretor: <strong>{% if m.lead.agent %}{{ m.lead.agent.get_full_name|default:m.lead.agent.username }}{% else %}—{% endif %}</strong>
                             </p>
 
                             {% if m.reasons %}
@@ -232,25 +233,25 @@
                 {% if property.sale_price > 0 %}
                 <div class="mb-3">
                     <span class="text-xs text-slate-500">Preço de Venda</span>
-                    <p class="text-2xl font-black text-emerald-700">R$ {{ property.sale_price }}</p>
+                    <p class="text-2xl font-black text-emerald-700 tabular-nums">R$ {{ property.sale_price|brl }}</p>
                 </div>
                 {% endif %}
 
                 {% if property.rental_price > 0 %}
                 <div class="mb-3">
                     <span class="text-xs text-slate-500">Preço de Locação</span>
-                    <p class="text-2xl font-black text-teal-700">R$ {{ property.rental_price }} <span class="text-xs font-normal text-slate-400">/mês</span></p>
+                    <p class="text-2xl font-black text-teal-700 tabular-nums">R$ {{ property.rental_price|brl }} <span class="text-xs font-normal text-slate-400">/mês</span></p>
                 </div>
                 {% endif %}
 
                 <div class="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
                     <div>
                         <span class="text-slate-400">Condomínio</span>
-                        <p class="font-bold text-slate-700">R$ {{ property.condo_fee|default:"0,00" }}</p>
+                        <p class="font-bold text-slate-700 tabular-nums">R$ {{ property.condo_fee|brl }}</p>
                     </div>
                     <div>
                         <span class="text-slate-400">IPTU</span>
-                        <p class="font-bold text-slate-700">R$ {{ property.iptu|default:"0,00" }}</p>
+                        <p class="font-bold text-slate-700 tabular-nums">R$ {{ property.iptu|brl }}</p>
                     </div>
                 </div>
             </div>

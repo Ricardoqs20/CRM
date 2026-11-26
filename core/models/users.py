@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -12,7 +13,7 @@ class UserProfile(models.Model):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='agent', verbose_name='Papel')
     creci = models.CharField(max_length=30, blank=True, null=True, verbose_name='CRECI')
     phone = models.CharField(max_length=30, blank=True, null=True, verbose_name='Telefone / WhatsApp')
-    monthly_goal = models.DecimalField(max_digits=12, decimal_places=2, default=500000.00, verbose_name='Meta Mensal de VGV (R$)')
+    monthly_goal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'), verbose_name='Meta Mensal de VGV (R$)')
     bio = models.TextField(blank=True, null=True, verbose_name='Biografia / Especialidade')
     created_at = models.DateTimeField(auto_now_add=True)
 

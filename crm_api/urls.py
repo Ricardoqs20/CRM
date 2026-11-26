@@ -14,7 +14,7 @@ from core.views import (
     visit_feedback_form_view, visit_feedback_save_view, visit_key_action_view,
     visit_whatsapp_confirm_view,
     task_list_view, task_create_view, task_toggle_complete_view,
-    dashboard_view,
+    dashboard_view, update_monthly_goal_view,
     lead_webhook_ingest_view, portal_xml_feed_view,
     whatsapp_template_list_view, whatsapp_template_save_view,
     whatsapp_template_delete_view, lead_template_message_view,
@@ -42,6 +42,7 @@ urlpatterns = [
 
     # Dashboard BI & Indicadores
     path('dashboard/', dashboard_view, name='dashboard'),
+    path('dashboard/meta/', update_monthly_goal_view, name='update_monthly_goal'),
 
     # Funil Kanban & Lead 360°
     path('', kanban_view, name='kanban'),

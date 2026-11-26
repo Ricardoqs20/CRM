@@ -859,4 +859,59 @@ class IntegrationsTestCase(TestCase):
         self.assertTrue(WhatsAppTemplate.objects.filter(title='Template Criado via View').exists())
 
 
+class MonthlyGoalAndBRLFormattingTestCase(TestCase):
+    """Testes para Meta do Mês editável pelo corretor e formatação/parsing BRL com pontos."""
+
+    def setUp(self):
+        self.client = Client()
+        self.agent = User.objects.create_user(username='corretor_meta', password='123', first_name='Julia')
+        self.profile = UserProfile.objects.create(user=self.agent, role='agent')
+
+    def test_monthly_goal_defaults_to_zero_and_shows_undefined_state(self):
+        from decimal import Decimal
+        self.assertEqual(self.profile.monthly_goal, Decimal('0.00'))
+
+        self.client.force_login(self.agent)
+        response = self.client.get(reverse('dashboard'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['meta_mensal'], Decimal('0.00'))
+        self.assertFalse(response.context['has_meta_mensal'])
+        self.assertContains(response, 'Meta não definida')
+        self.assertContains(response, 'Definir Meta')
+        self.assertNotContains(response, 'R$ 500.000')
+
+    def test_agent_can_update_own_monthly_goal_with_formatted_brl_string(self):
+        from decimal import Decimal
+        self.client.force_login(self.agent)
+
+        res = self.client.post(reverse('update_monthly_goal'), {
+            'monthly_goal': '500.000',
+        })
+        self.assertEqual(res.status_code, 302)
+
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.monthly_goal, Decimal('500000.00'))
+
+        dash = self.client.get(reverse('dashboard'))
+        self.assertEqual(dash.status_code, 200)
+        self.assertTrue(dash.context['has_meta_mensal'])
+        self.assertContains(dash, 'R$ 500.000')
+
+    def test_brl_formatting_filters_and_parse_brl_decimal(self):
+        from decimal import Decimal
+        from core.templatetags.crm_filters import brl_filter, brl_int_filter
+        from core.utils import parse_brl_decimal
+
+        self.assertEqual(parse_brl_decimal('500.000'), Decimal('500000'))
+        self.assertEqual(parse_brl_decimal('1.250.000'), Decimal('1250000'))
+        self.assertEqual(parse_brl_decimal('500.000,50'), Decimal('500000.50'))
+        self.assertEqual(parse_brl_decimal('750000.00'), Decimal('750000.00'))
+
+        self.assertEqual(brl_filter(500000), '500.000')
+        self.assertEqual(brl_filter(Decimal('500000.00')), '500.000')
+        self.assertEqual(brl_filter(Decimal('500000.50')), '500.000,50')
+        self.assertEqual(brl_int_filter(Decimal('1250000.75')), '1.250.001')
+
+
+
 

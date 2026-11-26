@@ -73,6 +73,7 @@ from .services.match_engine import (
     get_matching_leads_for_property,
     get_matching_properties_for_lead,
 )
+from .utils import format_brl, parse_brl_decimal
 
 
 # ==========================================
@@ -374,7 +375,7 @@ def lead_quick_create_view(request):
         client_phone = request.POST.get('client_phone')
         transaction_type = request.POST.get('transaction_type', 'buy')
         property_type = request.POST.get('property_type', 'apartment')
-        budget = request.POST.get('budget') or 0.00
+        budget = parse_brl_decimal(request.POST.get('budget'))
         origin = request.POST.get('origin', 'manual')
 
         client, _ = Person.objects.get_or_create(
@@ -542,10 +543,10 @@ def property_create_view(request):
         title = request.POST.get('title')
         property_type = request.POST.get('property_type', 'apartment')
         transaction_type = request.POST.get('transaction_type', 'sale')
-        sale_price = request.POST.get('sale_price') or 0.00
-        rental_price = request.POST.get('rental_price') or 0.00
-        condo_fee = request.POST.get('condo_fee') or 0.00
-        iptu = request.POST.get('iptu') or 0.00
+        sale_price = parse_brl_decimal(request.POST.get('sale_price'))
+        rental_price = parse_brl_decimal(request.POST.get('rental_price'))
+        condo_fee = parse_brl_decimal(request.POST.get('condo_fee'))
+        iptu = parse_brl_decimal(request.POST.get('iptu'))
         neighborhood = request.POST.get('neighborhood', '')
         street = request.POST.get('street', '')
         number = request.POST.get('number', '')
@@ -644,10 +645,10 @@ def property_edit_view(request, pk):
         prop.title = request.POST.get('title')
         prop.property_type = request.POST.get('property_type', 'apartment')
         prop.transaction_type = request.POST.get('transaction_type', 'sale')
-        prop.sale_price = request.POST.get('sale_price') or 0.00
-        prop.rental_price = request.POST.get('rental_price') or 0.00
-        prop.condo_fee = request.POST.get('condo_fee') or 0.00
-        prop.iptu = request.POST.get('iptu') or 0.00
+        prop.sale_price = parse_brl_decimal(request.POST.get('sale_price'))
+        prop.rental_price = parse_brl_decimal(request.POST.get('rental_price'))
+        prop.condo_fee = parse_brl_decimal(request.POST.get('condo_fee'))
+        prop.iptu = parse_brl_decimal(request.POST.get('iptu'))
         prop.neighborhood = request.POST.get('neighborhood', '')
         prop.street = request.POST.get('street', '')
         prop.number = request.POST.get('number', '')
@@ -722,7 +723,7 @@ def property_quick_create_view(request):
         transaction_type = request.POST.get('transaction_type', 'sale')
         property_type = request.POST.get('property_type', 'apartment')
         neighborhood = request.POST.get('neighborhood', '')
-        price = request.POST.get('price') or 0.00
+        price = parse_brl_decimal(request.POST.get('price'))
         bedrooms = request.POST.get('bedrooms') or 3
         parking_spaces = request.POST.get('parking_spaces') or 2
         owner_name = request.POST.get('owner_name', '').strip()
@@ -1316,13 +1317,13 @@ def dashboard_view(request):
     comissao_prevista = vgv_pipeline * Decimal('0.06')
     comissao_realizada = vgv_fechado_mes * Decimal('0.06')
 
-    if target_agent and hasattr(target_agent, 'profile'):
-        meta_mensal = target_agent.profile.monthly_goal or Decimal('500000.00')
+    if target_agent and hasattr(target_agent, 'profile') and target_agent.profile.monthly_goal is not None:
+        meta_mensal = target_agent.profile.monthly_goal
     elif is_manager and not selected_agent_id:
         total_meta_agents = UserProfile.objects.filter(user__is_active=True).aggregate(Sum('monthly_goal'))['monthly_goal__sum']
-        meta_mensal = total_meta_agents or Decimal('2000000.00')
+        meta_mensal = total_meta_agents or Decimal('0.00')
     else:
-        meta_mensal = Decimal('500000.00')
+        meta_mensal = Decimal('0.00')
 
     meta_progress_percent = min(100.0, float(round((vgv_fechado_mes / meta_mensal) * 100, 1))) if meta_mensal > 0 else 0.0
 
@@ -1428,18 +1429,25 @@ def dashboard_view(request):
             ag_total_concluded = ag_won_count + ag_leads.filter(status='lost').count()
             ag_conv_rate = round((ag_won_count / ag_total_concluded) * 100, 1) if ag_total_concluded > 0 else 0.0
 
-            ag_goal = ag.profile.monthly_goal if hasattr(ag, 'profile') else Decimal('500000.00')
-            ag_goal_percent = min(100.0, float(round((ag_vgv_won / ag_goal) * 100, 1))) if ag_goal > 0 else 0.0
+            ag_goal = (
+                ag.profile.monthly_goal
+                if hasattr(ag, 'profile') and ag.profile.monthly_goal is not None
+                else Decimal('0.00')
+            )
+            ag_has_goal = ag_goal > 0
+            ag_goal_percent = min(100.0, float(round((ag_vgv_won / ag_goal) * 100, 1))) if ag_has_goal else 0.0
 
             agents_ranking.append({
                 'agent': ag,
                 'active_leads': ag_active,
                 'visits_month': ag_visits_month,
                 'vgv_won': ag_vgv_won,
-                'vgv_won_formatted': f"R$ {ag_vgv_won:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                'vgv_won_formatted': f"R$ {format_brl(ag_vgv_won)}",
                 'conversion_rate': ag_conv_rate,
                 'goal': ag_goal,
-                'goal_formatted': f"R$ {ag_goal:,.0f}".replace(',', '.'),
+                'has_goal': ag_has_goal,
+                'goal_formatted': f"R$ {format_brl(ag_goal)}" if ag_has_goal else 'Meta não definida',
+                'goal_input': format_brl(ag_goal) if ag_has_goal else '',
                 'goal_percent': ag_goal_percent,
             })
 
@@ -1460,7 +1468,12 @@ def dashboard_view(request):
         'comissao_prevista': comissao_prevista,
         'comissao_realizada': comissao_realizada,
         'meta_mensal': meta_mensal,
+        'has_meta_mensal': meta_mensal > 0,
+        'meta_mensal_input': format_brl(meta_mensal) if meta_mensal > 0 else '',
         'meta_progress_percent': meta_progress_percent,
+        'target_agent_id': target_agent.id if target_agent else user.id,
+        'target_agent_name': (target_agent.get_full_name() or target_agent.username) if target_agent else (user.get_full_name() or user.username),
+        'can_edit_meta': bool(target_agent) or not is_manager,
         'ticket_medio': ticket_medio,
         'tempo_medio_ciclo': tempo_medio_ciclo,
         'taxa_conversao_geral': taxa_conversao_geral,
@@ -1486,6 +1499,34 @@ def dashboard_view(request):
     }
 
     return render(request, 'dashboard/dashboard.html', context)
+
+
+@login_required(login_url='crm_login')
+def update_monthly_goal_view(request):
+    """Permite ao corretor definir/alterar a própria meta mensal (ou ao gestor ajustar a de um membro)."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+
+    goal_value = parse_brl_decimal(request.POST.get('monthly_goal'), default=Decimal('0.00'))
+    if goal_value < Decimal('0.00'):
+        goal_value = Decimal('0.00')
+
+    target_user = request.user
+    target_user_id = request.POST.get('user_id')
+    if target_user_id and is_user_manager(request.user):
+        target_user = get_object_or_404(User, pk=target_user_id)
+
+    profile, _ = UserProfile.objects.get_or_create(user=target_user, defaults={'role': 'agent'})
+    profile.monthly_goal = goal_value
+    profile.save(update_fields=['monthly_goal'])
+
+    if goal_value > 0:
+        messages.success(request, f'Meta mensal atualizada para R$ {format_brl(goal_value)}!')
+    else:
+        messages.info(request, 'Meta mensal removida (definida como não informada).')
+
+    safe_next = get_safe_redirect_url(request, request.POST.get('next'), reverse('dashboard'))
+    return redirect(safe_next)
 
 
 # ==========================================
@@ -2018,8 +2059,8 @@ def client_preferences_save_view(request, person_id):
         'transaction_type': request.POST.get('transaction_type', 'buy'),
         'property_types': property_types,
         'preferred_locations': preferred_locations,
-        'min_price': request.POST.get('min_price') or 0.00,
-        'max_price': request.POST.get('max_price') or 0.00,
+        'min_price': parse_brl_decimal(request.POST.get('min_price')),
+        'max_price': parse_brl_decimal(request.POST.get('max_price')),
         'payment_method': request.POST.get('payment_method', 'cash'),
         'min_bedrooms': int(request.POST.get('min_bedrooms') or 0),
         'min_suites': int(request.POST.get('min_suites') or 0),
