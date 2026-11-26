@@ -1039,6 +1039,45 @@ class PortalImporterAndEmptyFeedTestCase(TestCase):
         self.assertEqual(res_bot['Content-Type'], 'application/xml; charset=utf-8')
 
 
+class NavigationRoleVisibilityTestCase(TestCase):
+    """Garante que o link de Administração (/admin/) e rótulo de cargo respeitam permissões."""
+
+    def setUp(self):
+        self.client = Client()
+        self.agent = User.objects.create_user(username='nav_agent', password='123')
+        UserProfile.objects.create(user=self.agent, role='agent')
+
+        self.assistant = User.objects.create_user(username='nav_assistant', password='123')
+        UserProfile.objects.create(user=self.assistant, role='assistant')
+
+        self.manager = User.objects.create_user(username='nav_manager', password='123')
+        UserProfile.objects.create(user=self.manager, role='manager')
+
+        self.superuser = User.objects.create_superuser(username='nav_super', email='s@x.com', password='123')
+
+    def test_admin_link_hidden_for_agent_and_assistant(self):
+        for user in (self.agent, self.assistant):
+            self.client.force_login(user)
+            res = self.client.get(reverse('kanban'))
+            self.assertEqual(res.status_code, 200)
+            self.assertNotContains(res, 'href="/admin/"')
+            self.assertContains(res, 'Corretor')
+
+    def test_admin_link_visible_for_manager_and_superuser(self):
+        self.client.force_login(self.manager)
+        res_mgr = self.client.get(reverse('kanban'))
+        self.assertEqual(res_mgr.status_code, 200)
+        self.assertContains(res_mgr, 'href="/admin/"')
+        self.assertContains(res_mgr, 'Gestor / Admin')
+
+        self.client.force_login(self.superuser)
+        res_sup = self.client.get(reverse('kanban'))
+        self.assertEqual(res_sup.status_code, 200)
+        self.assertContains(res_sup, 'href="/admin/"')
+        self.assertContains(res_sup, 'Administrador')
+
+
+
 
 
 
