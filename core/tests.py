@@ -1077,6 +1077,58 @@ class NavigationRoleVisibilityTestCase(TestCase):
         self.assertContains(res_sup, 'Administrador')
 
 
+class SeedDemoRicardoCommandTestCase(TestCase):
+    """Valida criação idempotente e limpeza seletiva (--clear) do comando seed_demo_ricardo."""
+
+    def test_seed_demo_ricardo_idempotency_and_selective_clear(self):
+        from django.core.management import call_command
+
+        user = User.objects.create_user(
+            username='ricardo_real',
+            email='ricardoqsantiago20@gmail.com',
+            password='123',
+        )
+        real_person = Person.objects.create(
+            name='Contato Real Preservado',
+            phone='(98) 99999-1234',
+            assigned_agent=user,
+            lgpd_origin='cadastro_manual',
+        )
+
+        call_command('seed_demo_ricardo')
+        self.assertGreaterEqual(Person.objects.filter(assigned_agent=user).count(), 26)
+        self.assertGreaterEqual(Property.objects.filter(captured_by=user).count(), 20)
+        self.assertGreaterEqual(PropertyLead.objects.filter(agent=user).count(), 25)
+        self.assertGreaterEqual(PropertyVisit.objects.filter(agent=user).count(), 15)
+        self.assertGreaterEqual(Activity.objects.filter(assigned_to=user).count(), 18)
+        self.assertGreaterEqual(WhatsAppTemplate.objects.filter(created_by=user).count(), 6)
+
+        counts_after_first = (
+            Person.objects.filter(assigned_agent=user).count(),
+            Property.objects.filter(captured_by=user).count(),
+            PropertyLead.objects.filter(agent=user).count(),
+        )
+
+        # Reexecução não duplica registros
+        call_command('seed_demo_ricardo')
+        self.assertEqual(
+            (
+                Person.objects.filter(assigned_agent=user).count(),
+                Property.objects.filter(captured_by=user).count(),
+                PropertyLead.objects.filter(agent=user).count(),
+            ),
+            counts_after_first,
+        )
+
+        # --clear remove apenas registros demo e preserva o contato real
+        call_command('seed_demo_ricardo', clear=True)
+        self.assertTrue(Person.objects.filter(pk=real_person.pk).exists())
+        self.assertEqual(Person.objects.filter(assigned_agent=user).count(), 1)
+        self.assertEqual(Property.objects.filter(captured_by=user).count(), 0)
+        self.assertEqual(PropertyLead.objects.filter(agent=user).count(), 0)
+
+
+
 
 
 
