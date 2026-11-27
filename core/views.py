@@ -448,7 +448,7 @@ def lead_anonymize_lgpd_view(request, pk):
 @rate_limit('search_properties', 30, 60, scope='user_or_ip')
 def property_list_view(request):
     """Listagem do Estoque de Imóveis com Filtros Dinâmicos HTMX"""
-    queryset = Property.objects.all().prefetch_related('images')
+    queryset = Property.objects.select_related('captured_by', 'owner').prefetch_related('images')
 
     q = request.GET.get('q', '').strip()
     if q:
@@ -1342,27 +1342,31 @@ def dashboard_view(request):
 
     now = timezone.now()
     start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-    won_leads_month = leads_filtered_qs.filter(
-        status='won'
-    ).filter(
+    won_month_q = Q(status='won') & (
         Q(closed_at__gte=start_of_month) | Q(closed_at__isnull=True, updated_at__gte=start_of_month)
     )
 
-    vgv_pipeline = leads_filtered_qs.filter(status='open').aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
-    vgv_fechado_mes = won_leads_month.aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
+    base_kpis = leads_base_qs.aggregate(
+        vgv_vendas_mes=Sum('budget', filter=won_month_q & Q(transaction_type='buy')),
+        vgv_locacao_mes=Sum('budget', filter=won_month_q & Q(transaction_type='rent')),
+    )
+    vgv_vendas_mes = base_kpis['vgv_vendas_mes'] or Decimal('0.00')
+    vgv_locacao_mes = base_kpis['vgv_locacao_mes'] or Decimal('0.00')
 
-    vgv_vendas_mes = leads_base_qs.filter(
-        status='won', transaction_type='buy'
-    ).filter(
-        Q(closed_at__gte=start_of_month) | Q(closed_at__isnull=True, updated_at__gte=start_of_month)
-    ).aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
-
-    vgv_locacao_mes = leads_base_qs.filter(
-        status='won', transaction_type='rent'
-    ).filter(
-        Q(closed_at__gte=start_of_month) | Q(closed_at__isnull=True, updated_at__gte=start_of_month)
-    ).aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
+    filtered_kpis = leads_filtered_qs.aggregate(
+        vgv_pipeline=Sum('budget', filter=Q(status='open')),
+        vgv_fechado_mes=Sum('budget', filter=won_month_q),
+        ticket_medio=Avg('budget', filter=Q(status='won')),
+        total_leads_count=Count('id'),
+        total_won=Count('id', filter=Q(status='won')),
+        total_lost=Count('id', filter=Q(status='lost')),
+    )
+    vgv_pipeline = filtered_kpis['vgv_pipeline'] or Decimal('0.00')
+    vgv_fechado_mes = filtered_kpis['vgv_fechado_mes'] or Decimal('0.00')
+    ticket_medio = filtered_kpis['ticket_medio'] or Decimal('0.00')
+    total_leads_count = filtered_kpis['total_leads_count'] or 0
+    total_won = filtered_kpis['total_won'] or 0
+    total_lost = filtered_kpis['total_lost'] or 0
 
     comissao_prevista = vgv_pipeline * Decimal('0.06')
     comissao_realizada = vgv_fechado_mes * Decimal('0.06')
@@ -1377,20 +1381,22 @@ def dashboard_view(request):
 
     meta_progress_percent = min(100.0, float(round((vgv_fechado_mes / meta_mensal) * 100, 1))) if meta_mensal > 0 else 0.0
 
-    all_won_leads = leads_filtered_qs.filter(status='won')
-    ticket_medio = all_won_leads.aggregate(Avg('budget'))['budget__avg'] or Decimal('0.00')
-
-    cycle_days_list = [lead.cycle_time_days for lead in all_won_leads]
+    won_dates = leads_filtered_qs.filter(status='won').values_list('created_at', 'closed_at')
+    cycle_days_list = [max(1, ((closed_at or now) - created_at).days) for created_at, closed_at in won_dates]
     tempo_medio_ciclo = round(sum(cycle_days_list) / len(cycle_days_list), 1) if cycle_days_list else 18.5
 
     pipeline_default = Pipeline.objects.filter(is_default=True).first() or Pipeline.objects.first()
-    stages = Stage.objects.filter(pipeline=pipeline_default).order_by('order') if pipeline_default else []
+    stages = list(Stage.objects.filter(pipeline=pipeline_default).order_by('order')) if pipeline_default else []
 
-    total_leads_count = leads_filtered_qs.count()
+    stage_stats = {
+        row['stage_id']: row
+        for row in leads_filtered_qs.values('stage_id').annotate(cnt=Count('id'), total=Sum('budget'))
+    }
     funnel_data = []
     for stg in stages:
-        count_in_stage = leads_filtered_qs.filter(stage=stg).count()
-        amount_in_stage = leads_filtered_qs.filter(stage=stg).aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
+        row = stage_stats.get(stg.id, {})
+        count_in_stage = row.get('cnt', 0) or 0
+        amount_in_stage = row.get('total') or Decimal('0.00')
         percent = round((count_in_stage / total_leads_count) * 100, 1) if total_leads_count > 0 else 0
         funnel_data.append({
             'stage': stg,
@@ -1399,8 +1405,6 @@ def dashboard_view(request):
             'percent': percent,
         })
 
-    total_won = leads_filtered_qs.filter(status='won').count()
-    total_lost = leads_filtered_qs.filter(status='lost').count()
     total_concluded = total_won + total_lost
     taxa_conversao_geral = round((total_won / total_concluded) * 100, 1) if total_concluded > 0 else (
         round((total_won / total_leads_count) * 100, 1) if total_leads_count > 0 else 0.0
@@ -1420,27 +1424,27 @@ def dashboard_view(request):
 
     month_names_pt = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
     vgv_monthly_labels = []
-    vgv_monthly_data = []
-
-    for i in range(5, -1, -1):
+    month_buckets = []
+    for idx, i in enumerate(range(5, -1, -1)):
         calc_month = (now.month - i - 1) % 12 + 1
         calc_year = now.year if (now.month - i) > 0 else now.year - 1
-        label = f"{month_names_pt[calc_month]}/{str(calc_year)[2:]}"
-        vgv_monthly_labels.append(label)
-
+        vgv_monthly_labels.append(f"{month_names_pt[calc_month]}/{str(calc_year)[2:]}")
         m_start = timezone.make_aware(datetime(calc_year, calc_month, 1, 0, 0, 0))
         if calc_month == 12:
             m_end = timezone.make_aware(datetime(calc_year + 1, 1, 1, 0, 0, 0))
         else:
             m_end = timezone.make_aware(datetime(calc_year, calc_month + 1, 1, 0, 0, 0))
+        month_buckets.append((f"m{idx}", m_start, m_end))
 
-        month_sum = leads_filtered_qs.filter(
-            status='won',
-            closed_at__gte=m_start,
-            closed_at__lt=m_end
-        ).aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
-
-        vgv_monthly_data.append(float(month_sum))
+    monthly_aggs = leads_filtered_qs.filter(
+        status='won',
+        closed_at__gte=month_buckets[0][1],
+        closed_at__lt=month_buckets[-1][2],
+    ).aggregate(**{
+        key: Sum('budget', filter=Q(closed_at__gte=m_start, closed_at__lt=m_end))
+        for key, m_start, m_end in month_buckets
+    })
+    vgv_monthly_data = [float(monthly_aggs[key] or Decimal('0.00')) for key, _, _ in month_buckets]
 
     if sum(vgv_monthly_data) == 0 and float(vgv_fechado_mes) > 0:
         vgv_monthly_data[-1] = float(vgv_fechado_mes)
@@ -1456,27 +1460,34 @@ def dashboard_view(request):
         lost_reasons_labels = ['Preço acima do orçamento', 'Financiamento reprovado', 'Localização desfavorável', 'Preferiu outro corretor', 'Desistiu da compra']
         lost_reasons_data = [5, 4, 3, 2, 1]
 
+    all_agents = list(User.objects.filter(is_active=True).select_related('profile').order_by('first_name', 'username'))
     agents_ranking = []
     if is_manager:
-        all_agents = User.objects.filter(is_active=True).select_related('profile').order_by('first_name')
-        for ag in all_agents:
-            ag_leads = PropertyLead.objects.filter(agent=ag)
-            ag_active = ag_leads.filter(status='open').count()
-
-            ag_visits_month = PropertyVisit.objects.filter(
-                agent=ag,
+        lead_stats_by_agent = {
+            row['agent_id']: row
+            for row in PropertyLead.objects.filter(agent__isnull=False).values('agent_id').annotate(
+                active=Count('id', filter=Q(status='open')),
+                vgv_won=Sum('budget', filter=won_month_q),
+                won_count=Count('id', filter=Q(status='won')),
+                lost_count=Count('id', filter=Q(status='lost')),
+            )
+        }
+        visit_stats_by_agent = {
+            row['agent_id']: row['cnt']
+            for row in PropertyVisit.objects.filter(
+                agent__isnull=False,
                 status='completed',
-                scheduled_date__gte=start_of_month
-            ).count()
+                scheduled_date__gte=start_of_month,
+            ).values('agent_id').annotate(cnt=Count('id'))
+        }
 
-            ag_vgv_won = ag_leads.filter(
-                status='won'
-            ).filter(
-                Q(closed_at__gte=start_of_month) | Q(closed_at__isnull=True, updated_at__gte=start_of_month)
-            ).aggregate(Sum('budget'))['budget__sum'] or Decimal('0.00')
-
-            ag_won_count = ag_leads.filter(status='won').count()
-            ag_total_concluded = ag_won_count + ag_leads.filter(status='lost').count()
+        for ag in all_agents:
+            ag_stats = lead_stats_by_agent.get(ag.id, {})
+            ag_active = ag_stats.get('active', 0) or 0
+            ag_visits_month = visit_stats_by_agent.get(ag.id, 0) or 0
+            ag_vgv_won = ag_stats.get('vgv_won') or Decimal('0.00')
+            ag_won_count = ag_stats.get('won_count', 0) or 0
+            ag_total_concluded = ag_won_count + (ag_stats.get('lost_count', 0) or 0)
             ag_conv_rate = round((ag_won_count / ag_total_concluded) * 100, 1) if ag_total_concluded > 0 else 0.0
 
             ag_goal = (
@@ -1503,7 +1514,7 @@ def dashboard_view(request):
 
         agents_ranking.sort(key=lambda x: x['vgv_won'], reverse=True)
 
-    agents = User.objects.filter(is_active=True).order_by('first_name', 'username')
+    agents = all_agents
 
     context = {
         'is_manager': is_manager,

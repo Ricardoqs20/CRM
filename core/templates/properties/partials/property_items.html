@@ -103,7 +103,7 @@
         <!-- Imagem de Capa -->
         <div class="relative h-48 bg-slate-100 overflow-hidden">
             {% if prop.cover_image %}
-            <img src="{{ prop.cover_image }}" alt="{{ prop.title }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+            <img src="{{ prop.cover_image }}" alt="{{ prop.title }}" loading="lazy" decoding="async" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
             {% else %}
             <div class="w-full h-full flex flex-col items-center justify-center text-slate-400">
                 <i data-lucide="image" class="w-10 h-10 stroke-1"></i>

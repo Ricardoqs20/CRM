@@ -24,46 +24,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
-                        body: ['Inter', 'system-ui', 'sans-serif'],
-                    },
-                    colors: {
-                        primary: {
-                            DEFAULT: '#01125B',
-                            50: '#F0F3FA',
-                            100: '#E0E7F5',
-                            200: '#C2D0EC',
-                            600: '#1A368F',
-                            700: '#0E2472',
-                            800: '#051860',
-                            900: '#01125B',
-                            dark: '#000D47',
-                        },
-                        surface: {
-                            DEFAULT: '#FFFFFF',
-                            muted: '#F8FAFC',
-                            subtle: '#F1F5F9',
-                            border: '#E2E8F0',
-                        }
-                    },
-                    boxShadow: {
-                        xs: '0 1px 2px 0 rgba(15, 23, 42, 0.05)',
-                        sm: '0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.08)',
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <script defer src="{% static 'js/vendor/htmx.min.js' %}"></script>
+    <script defer src="{% static 'js/vendor/alpine.min.js' %}"></script>
+    <script defer src="{% static 'js/vendor/lucide.min.js' %}"></script>
 
     <style>
         html { background-color: #01125B; }
@@ -471,7 +435,11 @@
     </div>
 
     <script>
-        lucide.createIcons();
+        function renderLucideIcons() {
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
 
         function formatMoneyInputString(raw) {
             const digits = String(raw || '').replace(/\D/g, '');
@@ -506,11 +474,12 @@
         });
 
         document.addEventListener('DOMContentLoaded', function() {
+            renderLucideIcons();
             initMoneyInputs(document);
         });
 
         document.body.addEventListener('htmx:afterSwap', function(evt) {
-            lucide.createIcons();
+            renderLucideIcons();
             initMoneyInputs(evt.target);
         });
         if ('serviceWorker' in navigator) {

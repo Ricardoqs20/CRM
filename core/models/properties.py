@@ -113,11 +113,11 @@ class Property(models.Model):
     @property
     def cover_image(self):
         """Retorna a imagem de capa ou a primeira imagem cadastrada"""
-        featured = self.images.filter(is_featured=True).first()
-        if featured:
-            return featured.image.url
-        first = self.images.first()
-        return first.image.url if first else None
+        imgs = list(self.images.all())
+        if not imgs:
+            return None
+        featured = next((img for img in imgs if img.is_featured), None)
+        return (featured or imgs[0]).image.url
 
 
 class PropertyImage(models.Model):
