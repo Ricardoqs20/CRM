@@ -131,7 +131,7 @@
 
     <!-- Sidebar Desktop (md:) e Drawer Lateral Mobile -->
     <aside class="bg-[#01125B] text-white flex flex-col flex-shrink-0 z-50 sidebar-mobile md:translate-x-0 md:static md:h-full md:border-r md:border-white/10 w-72 md:w-64"
-           :class="{ 'sidebar-visible': mobileMenuOpen, 'sidebar-animated': sidebarAnimated }">
+           :class="{ 'sidebar-visible': mobileMenuOpen, 'sidebar-animated': sidebarAnimated, 'md:hidden': !sidebarOpen }">
         
         <!-- Topo da Sidebar: Logo & Fechar (mobile) -->
         <div class="h-16 flex items-center justify-between px-4 border-b border-white/10 bg-[#01125B] shrink-0">
@@ -315,6 +315,12 @@
         <!-- Top bar Desktop (md: e acima) -->
         <header class="hidden md:flex h-14 bg-white border-b border-slate-200 px-6 items-center justify-between flex-shrink-0">
             <div class="flex items-center gap-3 min-w-0">
+                <button type="button" @click="toggleSidebar()"
+                        class="p-1.5 -ml-1.5 rounded-lg text-slate-500 hover:text-[#01125B] hover:bg-slate-100 transition shrink-0"
+                        :title="sidebarOpen ? 'Recolher menu lateral' : 'Expandir menu lateral'"
+                        aria-label="Alternar menu lateral">
+                    <i data-lucide="panel-left" class="w-4 h-4"></i>
+                </button>
                 <h1 class="text-sm font-bold text-slate-800 tracking-tight truncate">
                     {% block header_title %}CRM Imobiliário{% endblock %}
                 </h1>
