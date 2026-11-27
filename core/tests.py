@@ -1128,6 +1128,38 @@ class SeedDemoRicardoCommandTestCase(TestCase):
         self.assertEqual(PropertyLead.objects.filter(agent=user).count(), 0)
 
 
+class CoreRoutesSmokeTests(TestCase):
+    """Garante controle de acesso anônimo e renderização 200 das rotas principais"""
+
+    MAIN_ROUTES = [
+        '/dashboard/',
+        '/',
+        '/properties/',
+        '/contatos/',
+        '/visits/',
+        '/tasks/',
+        '/templates/',
+    ]
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='corretor_rotas', password='123')
+        UserProfile.objects.create(user=self.user, role='agent')
+
+    def test_anonymous_visitor_redirected_to_login(self):
+        for route in self.MAIN_ROUTES:
+            response = self.client.get(route)
+            self.assertEqual(response.status_code, 302, f'{route} deveria redirecionar visitante anônimo')
+            self.assertIn('/login/', response['Location'], f'{route} deveria redirecionar para /login/')
+
+    def test_authenticated_user_accesses_main_routes(self):
+        self.client.force_login(self.user)
+        for route in self.MAIN_ROUTES:
+            response = self.client.get(route)
+            self.assertEqual(response.status_code, 200, f'{route} falhou para usuário autenticado')
+
+
+
 
 
 
