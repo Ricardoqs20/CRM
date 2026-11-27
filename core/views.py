@@ -14,6 +14,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.core.paginator import Paginator
 from django.db.models import Avg, Case, Count, Prefetch, Q, Sum, When
 from django.http import (
     Http404,
@@ -486,10 +487,14 @@ def property_list_view(request):
 
     view_mode = request.GET.get('view_mode', 'grid')
 
+    paginator = Paginator(queryset.order_by('-id'), 12)
+    page_obj = paginator.get_page(request.GET.get('page', 1))
+
     neighborhoods = Property.objects.values_list('neighborhood', flat=True).distinct().order_by('neighborhood')
 
     context = {
-        'properties': queryset,
+        'properties': page_obj,
+        'page_obj': page_obj,
         'neighborhoods': neighborhoods,
         'view_mode': view_mode,
         'q': q,

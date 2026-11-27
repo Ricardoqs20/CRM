@@ -69,6 +69,7 @@
             </a>
             {% endif %}
 
+            {% if visit.key_status != 'returned' %}
             <form method="POST" action="{% url 'visit_key_action' visit.id %}" class="inline">
                 {% csrf_token %}
                 {% if visit.key_status == 'with_agent' %}
@@ -77,7 +78,7 @@
                         class="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded-md text-[10px] font-bold transition whitespace-nowrap">
                     Devolver
                 </button>
-                {% elif visit.key_status != 'returned' %}
+                {% else %}
                 <input type="hidden" name="action_type" value="withdraw">
                 <button type="submit"
                         class="bg-amber-600 hover:bg-amber-700 text-white px-2 py-1 rounded-md text-[10px] font-bold transition whitespace-nowrap">
@@ -85,6 +86,7 @@
                 </button>
                 {% endif %}
             </form>
+            {% endif %}
 
             {% if visit.client_rating %}
             <span class="px-1.5 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold whitespace-nowrap" title="Avaliação: {{ visit.client_rating }}/5">

@@ -222,4 +222,38 @@
     </div>
     {% endfor %}
 </div>
+
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 bg-white rounded-xl px-4 py-3 border border-slate-200 shadow-xs text-xs">
+    <p class="text-slate-500 tabular-nums">
+        Mostrando <strong class="text-slate-800">{{ page_obj.start_index }}–{{ page_obj.end_index }}</strong> de
+        <strong class="text-slate-800">{{ page_obj.paginator.count }}</strong> imóveis
+        (Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }})
+    </p>
+
+    <div class="flex items-center gap-1.5">
+        {% if page_obj.has_previous %}
+        <button type="button"
+                hx-get="{% url 'property_list' %}?page={{ page_obj.previous_page_number }}&q={{ q|urlencode }}&neighborhood={{ current_neighborhood|urlencode }}&property_type={{ current_type|urlencode }}&transaction_type={{ current_trans|urlencode }}&status={{ current_status|urlencode }}&is_exclusive={{ current_exclusive|urlencode }}&my_captures={{ current_my_captures|urlencode }}&view_mode={{ view_mode|urlencode }}"
+                hx-target="#property-results"
+                hx-push-url="true"
+                class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition flex items-center gap-1">
+            <i data-lucide="chevron-left" class="w-3.5 h-3.5"></i>
+            <span>Anterior</span>
+        </button>
+        {% endif %}
+
+        {% if page_obj.has_next %}
+        <button type="button"
+                hx-get="{% url 'property_list' %}?page={{ page_obj.next_page_number }}&q={{ q|urlencode }}&neighborhood={{ current_neighborhood|urlencode }}&property_type={{ current_type|urlencode }}&transaction_type={{ current_trans|urlencode }}&status={{ current_status|urlencode }}&is_exclusive={{ current_exclusive|urlencode }}&my_captures={{ current_my_captures|urlencode }}&view_mode={{ view_mode|urlencode }}"
+                hx-target="#property-results"
+                hx-push-url="true"
+                class="px-3 py-1.5 rounded-lg bg-[#01125B] hover:bg-[#021a80] text-white font-semibold transition flex items-center gap-1">
+            <span>Próxima</span>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% endif %}

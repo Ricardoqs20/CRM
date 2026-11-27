@@ -299,16 +299,18 @@
                             <i data-lucide="message-circle" class="w-3 h-3"></i> WhatsApp
                         </a>
                         {% endif %}
+                        {% if visit.key_status != 'returned' %}
                         <form method="POST" action="{% url 'visit_key_action' visit.id %}" class="inline">
                             {% csrf_token %}
                             {% if visit.key_status == 'with_agent' %}
                             <input type="hidden" name="action_type" value="return">
                             <button type="submit" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold whitespace-nowrap">Devolver Chave</button>
-                            {% elif visit.key_status != 'returned' %}
+                            {% else %}
                             <input type="hidden" name="action_type" value="withdraw">
                             <button type="submit" class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold whitespace-nowrap">Retirar Chave</button>
                             {% endif %}
                         </form>
+                        {% endif %}
                         {% if not visit.client_rating %}
                         <button hx-get="{% url 'visit_feedback_form' visit.id %}"
                                 hx-target="#feedbackModalContent"
