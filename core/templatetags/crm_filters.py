@@ -1,8 +1,22 @@
+import re
 from decimal import Decimal
 from django import template
 from core.utils import format_brl, parse_brl_decimal
 
 register = template.Library()
+
+
+@register.filter(name='clean_demo_text')
+def clean_demo_text_filter(value):
+    """Remove marcadores internos de seed ([DEMO-RICARDO], [Demo]) e frases artificiais de exibição."""
+    if not value:
+        return ''
+    text = str(value).strip()
+    text = re.sub(r'\[DEMO-RICARDO\]\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\[Demo(?:\s+#\d+)?\]\s*', '', text, flags=re.IGNORECASE)
+    if re.match(r'^(Tarefa simulada vinculada a|Imóvel simulado em|Preferência simulada)\b', text, flags=re.IGNORECASE):
+        return ''
+    return text.strip()
 
 
 @register.filter(name='brl')

@@ -1,8 +1,15 @@
 {% extends 'base.html' %}
 {% load crm_filters %}
 
-{% block title %}[{{ property.code }}] {{ property.title }} - IMOBICRM{% endblock %}
-{% block header_title %}🏠 Ficha do Imóvel: <span class="font-mono text-emerald-600 ml-1">{{ property.code }}</span>{% endblock %}
+{% block title %}[{{ property.code }}] {{ property.title }} - ImobiCRM{% endblock %}
+{% block header_title %}
+<span class="flex items-center gap-2">
+    <span class="p-1.5 rounded-lg bg-slate-100 text-[#01125B] flex items-center justify-center">
+        <i data-lucide="building-2" class="w-4 h-4"></i>
+    </span>
+    <span>Ficha do Imóvel: <span class="font-mono text-[#01125B] ml-1">{{ property.code }}</span></span>
+</span>
+{% endblock %}
 
 {% block content %}
 <div class="max-w-6xl mx-auto space-y-6">
@@ -23,8 +30,9 @@
                         {{ property.get_status_display }}
                     </span>
                     {% if property.is_exclusive %}
-                    <span class="text-xs font-bold bg-amber-300 text-amber-900 px-2 py-0.5 rounded flex items-center gap-1">
-                        ⭐ Exclusivo
+                    <span class="text-xs font-bold bg-slate-100 text-[#01125B] border border-slate-200 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                        <i data-lucide="award" class="w-3.5 h-3.5"></i>
+                        <span>Exclusivo</span>
                     </span>
                     {% endif %}
                 </div>
@@ -74,41 +82,42 @@
             </div>
 
             <!-- Leads Interessados neste Perfil (Match Automático) -->
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                        <i data-lucide="sparkles" class="w-4 h-4 text-amber-500"></i>
-                        <span>Clientes da Base Compatíveis com este Imóvel (Match)</span>
+            <div class="bg-white p-6 rounded-xl shadow-xs border border-slate-200">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                        <i data-lucide="target" class="w-4 h-4 text-[#01125B]"></i>
+                        <span>Clientes da Base Compatíveis (Match)</span>
                     </h3>
-                    <span class="text-xs font-bold bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded-full">
-                        {{ matching_leads|length }} clientes potenciais
+                    <span class="text-xs font-bold bg-slate-100 text-[#01125B] border border-slate-200 px-2.5 py-0.5 rounded-full tabular-nums whitespace-nowrap">
+                        {{ matching_leads|length }} compatíveis
                     </span>
                 </div>
 
                 <div class="space-y-3">
                     {% for m in matching_leads %}
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 hover:border-emerald-400 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="text-[11px] font-black px-2 py-0.5 rounded-md text-white shadow-xs
-                                             {% if m.score >= 85 %}bg-emerald-600{% elif m.score >= 70 %}bg-teal-600{% else %}bg-amber-500{% endif %}">
-                                    {% if m.score >= 85 %}🔥{% elif m.score >= 70 %}⭐{% else %}⚡{% endif %}
-                                    {{ m.score }}% Match
+                    <div class="bg-slate-50/70 p-4 rounded-xl border border-slate-200 hover:border-[#01125B]/40 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="flex items-center flex-wrap gap-2 mb-1">
+                                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-md tabular-nums whitespace-nowrap inline-flex items-center gap-1
+                                             {% if m.score >= 85 %}bg-[#01125B] text-white{% elif m.score >= 70 %}bg-slate-800 text-white{% else %}bg-slate-200 text-slate-800{% endif %}">
+                                    <i data-lucide="target" class="w-3 h-3"></i>
+                                    <span>{{ m.score }}% Match</span>
                                 </span>
-                                <span class="font-bold text-xs text-slate-800">{{ m.lead.client.name }}</span>
-                                <span class="text-[11px] text-slate-400 font-mono">({{ m.lead.client.phone }})</span>
+                                <span class="font-bold text-xs text-slate-900">{{ m.lead.client.name }}</span>
+                                <span class="text-[11px] text-slate-400 font-mono tabular-nums">({{ m.lead.client.phone }})</span>
                             </div>
 
-                            <p class="text-xs text-slate-600 font-medium">{{ m.lead.title }}</p>
+                            <p class="text-xs text-slate-700 font-medium">{{ m.lead.title|clean_demo_text }}</p>
                             <p class="text-[11px] text-slate-500 mt-0.5">
                                 Orçamento: <strong class="text-slate-800 tabular-nums">R$ {{ m.lead.budget|brl }}</strong> • Corretor: <strong>{% if m.lead.agent %}{{ m.lead.agent.get_full_name|default:m.lead.agent.username }}{% else %}—{% endif %}</strong>
                             </p>
 
                             {% if m.reasons %}
-                            <div class="flex flex-wrap gap-1 mt-2 text-[10px]">
+                            <div class="flex flex-wrap gap-1.5 mt-2 text-[11px]">
                                 {% for r in m.reasons %}
-                                <span class="bg-white text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
-                                    ✓ {{ r }}
+                                <span class="bg-white text-slate-600 px-2 py-0.5 rounded-lg border border-slate-200 inline-flex items-center gap-1">
+                                    <i data-lucide="check" class="w-3 h-3 text-[#01125B]"></i>
+                                    <span>{{ r }}</span>
                                 </span>
                                 {% endfor %}
                             </div>
@@ -118,14 +127,14 @@
                         <!-- Botão de Ação WhatsApp Direto -->
                         <div class="flex-shrink-0">
                             <a href="{{ m.whatsapp_url }}" target="_blank" 
-                               class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5">
-                                <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                               class="bg-[#01125B] hover:bg-[#021a80] text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition inline-flex items-center gap-1.5 whitespace-nowrap">
+                                <i data-lucide="message-circle" class="w-3.5 h-3.5"></i>
                                 <span>Ofertar no WhatsApp</span>
                             </a>
                         </div>
                     </div>
                     {% empty %}
-                    <p class="text-xs text-slate-400 text-center py-4 italic">Nenhum lead em aberto tem afinidade suficiente com este imóvel no momento.</p>
+                    <p class="text-xs text-slate-400 text-center py-4">Nenhum lead em aberto atende ao perfil mínimo deste imóvel no momento.</p>
                     {% endfor %}
                 </div>
             </div>
@@ -161,50 +170,63 @@
                     <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">Diferenciais do Imóvel e Condomínio</h4>
                     <div class="flex flex-wrap gap-2">
                         {% if property.morning_sun %}
-                        <span class="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-                            ☀️ Sol da Manhã (Nascente)
+                        <span class="text-xs bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 font-medium">
+                            <i data-lucide="sun" class="w-3.5 h-3.5 text-[#01125B]"></i>
+                            <span>Sol da Manhã (Nascente)</span>
                         </span>
                         {% endif %}
                         {% if property.gourmet_balcony %}
-                        <span class="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-                            🍖 Varanda Gourmet
+                        <span class="text-xs bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 font-medium">
+                            <i data-lucide="utensils" class="w-3.5 h-3.5 text-[#01125B]"></i>
+                            <span>Varanda Gourmet</span>
                         </span>
                         {% endif %}
                         {% if property.pets_allowed %}
-                        <span class="text-xs bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-                            🐾 Aceita Pets
+                        <span class="text-xs bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 font-medium">
+                            <i data-lucide="paw-print" class="w-3.5 h-3.5 text-[#01125B]"></i>
+                            <span>Aceita Pets</span>
                         </span>
                         {% endif %}
                         {% if property.pool %}
-                        <span class="text-xs bg-cyan-50 text-cyan-800 border border-cyan-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-                            🏊 Piscina
+                        <span class="text-xs bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 font-medium">
+                            <i data-lucide="waves" class="w-3.5 h-3.5 text-[#01125B]"></i>
+                            <span>Piscina</span>
                         </span>
                         {% endif %}
                         {% if property.gym %}
-                        <span class="text-xs bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-                            💪 Academia
+                        <span class="text-xs bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 font-medium">
+                            <i data-lucide="dumbbell" class="w-3.5 h-3.5 text-[#01125B]"></i>
+                            <span>Academia</span>
                         </span>
                         {% endif %}
                         {% if property.elevator %}
-                        <span class="text-xs bg-purple-50 text-purple-800 border border-purple-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-                            🛗 Elevador
+                        <span class="text-xs bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 font-medium">
+                            <i data-lucide="arrow-up-down" class="w-3.5 h-3.5 text-[#01125B]"></i>
+                            <span>Elevador</span>
                         </span>
                         {% endif %}
                         {% if property.furnished %}
-                        <span class="text-xs bg-teal-50 text-teal-800 border border-teal-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
-                            🛋️ Mobiliado
+                        <span class="text-xs bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 font-medium">
+                            <i data-lucide="armchair" class="w-3.5 h-3.5 text-[#01125B]"></i>
+                            <span>Mobiliado</span>
                         </span>
                         {% endif %}
                     </div>
                 </div>
 
                 <!-- Descrição Comercial -->
-                {% if property.description %}
+                {% with clean_desc=property.description|clean_demo_text %}
                 <div class="mt-6 pt-5 border-t border-slate-100">
                     <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Descrição Comercial</h4>
-                    <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{{ property.description }}</p>
+                    {% if clean_desc %}
+                    <p class="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{{ clean_desc }}</p>
+                    {% else %}
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        {{ property.get_property_type_display }} para {{ property.get_transaction_type_display|lower }} no bairro {{ property.neighborhood }}, {{ property.city }}/{{ property.state }}, com {{ property.usable_area|floatformat:0 }} m² de área privativa{% if property.bedrooms > 0 %}, {{ property.bedrooms }} quarto{{ property.bedrooms|pluralize }}{% endif %}{% if property.parking_spaces > 0 %} e {{ property.parking_spaces }} vaga{{ property.parking_spaces|pluralize }} de garagem{% endif %}.
+                    </p>
+                    {% endif %}
                 </div>
-                {% endif %}
+                {% endwith %}
             </div>
 
             <!-- Endereço e Localização -->
